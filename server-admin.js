@@ -19,6 +19,7 @@ const server = http.createServer((req, res) => {
   const sharedFiles = {
     '/': 'admin.html', '/index.html': 'admin.html', '/admin': 'admin.html',
     '/autopago': 'autopago.html', '/kiosco': 'autopago.html',
+    '/datos-factura': 'datos-factura.html',
     '/chat': 'chat.html', '/factura': 'factura.html', '/factura.html': 'factura.html',
     '/pay-ui.css': 'pay-ui.css', '/zxing.min.js': 'zxing.min.js'
   };

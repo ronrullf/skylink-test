@@ -250,146 +250,15 @@
         </div>
       </div>
 
-      <div style="border-top:1px solid #e2e8f0; padding-top:16px; margin-top:10px;">
-        <div style="font-size:13px; font-weight:800; margin-bottom:10px;">🧾 Datos obligatorios para la factura</div>
-        <div class="form-group" style="margin-bottom:10px;">
-          <label class="form-label" for="invoiceName">Nombre y apellido</label>
-          <input class="form-input" id="invoiceName" autocomplete="name" placeholder="Ej: María Pérez" maxlength="80">
-        </div>
-        <div class="form-group" style="margin-bottom:10px;">
-          <label class="form-label" for="invoiceId">Cédula</label>
-          <input class="form-input" id="invoiceId" inputmode="numeric" autocomplete="off" placeholder="Ej: V-12345678" maxlength="12">
-        </div>
-        <p class="helper" style="margin-top:0;">Se incluirán en la factura impresa. No solicitamos otros datos.</p>
-      </div>
-
       <p id="paymentError" class="inline-message" role="alert" hidden></p>
       
       <button class="btn-pay" id="btnPay" disabled onclick="iniciarCobro()">
-        💳 Pagar con Skylink Pay
-        <span>Acepta Pago Móvil C2P y Débito Inmediato</span>
+        Comprar
+        <span>Continuar a datos de facturación</span>
       </button>
 
       <button class="btn-clear" onclick="limpiarCarrito()">Vaciar carrito</button>
     </aside>
-  </div>
-
-  <!-- Modal Oficial de Pago Skylink Pay -->
-  <div class="modal-overlay" id="modalPayment" role="dialog" aria-modal="true" aria-label="Opciones de pago">
-    <div class="modal-box" id="paymentContent">
-      <button class="modal-close-btn" aria-label="Cerrar modal de pago" onclick="cerrarModal()">✕</button>
-      
-      <div id="stepMethodSelect">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-          <div style="width:36px; height:36px; border-radius:10px; background:#10b981; color:white; display:grid; place-items:center; font-size:18px;">💳</div>
-          <div>
-            <h3 style="font-size: 18px; color: #0f172a; margin:0;">Pasarela Oficial Skylink Pay</h3>
-            <span style="font-size:12px; color:#64748b;">Comercio: 754947900700 · Valink Group</span>
-          </div>
-        </div>
-
-        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px; text-align:center; margin-bottom:18px;">
-          <div style="font-size:11px; text-transform:uppercase; font-weight:700; color:#64748b;">Monto Total Exacto</div>
-          <div style="font-size:26px; font-weight:800; color:#0f172a; margin:2px 0;" id="selectAmountBs">Bs. 0.00</div>
-          <div style="font-size:13px; font-weight:600; color:#0284c7;" id="selectAmountUsd">≈ $0.00 USD</div>
-        </div>
-
-        <div class="payment-options-grid">
-          <!-- Opción A: Botón de Checkout Oficial Skylink -->
-          <a class="payment-option-card" id="btnOpenOfficialScreen" href="#" target="_blank" rel="noopener noreferrer" style="border: 2px solid #10b981; background:#f0fdf4;">
-            <div class="option-icon" style="background:#dcfce7;">⚡</div>
-            <div class="option-details">
-              <h4 style="color:#15803d; font-size:14px;">Abrir Checkout Oficial de Skylink Pay</h4>
-              <p>Paga con Débito Inmediato o Pago Móvil en la pantalla oficial.</p>
-            </div>
-            <div class="option-arrow" style="color:#15803d; font-size:18px; font-weight:800;">↗</div>
-          </a>
-
-          <!-- Opción B: Escaneo QR desde Celular -->
-          <button type="button" class="payment-option-card" onclick="mostrarQR()">
-            <div class="option-icon">📱</div>
-            <div class="option-details">
-              <h4>Ver Código QR para escanear</h4>
-              <p>Escanea con tu celular y completa el pago en tu teléfono móvil.</p>
-            </div>
-            <div class="option-arrow">↓</div>
-          </button>
-        </div>
-
-        <!-- Vista QR Desplegable -->
-        <div id="qrDisplayBox" style="display:none; text-align:center; margin-top:14px; border-top:1px dashed #cbd5e1; padding-top:14px;">
-          <h4 style="font-size:14px; color:#0f172a; margin-bottom:6px;">Escanea con la cámara de tu celular:</h4>
-          <div class="qr-container" style="background:white; padding:12px; display:inline-block; border-radius:12px; border:1px solid #e2e8f0;">
-            <img id="qrImage" src="" alt="Código QR Skylink Pay" style="width:200px; height:200px; display:block;">
-          </div>
-          <div style="margin-top:8px; font-size:12px; color:#0284c7; font-weight:600;">
-            ⏳ Monitoreando tu pago en tiempo real con Skylink Pay...
-          </div>
-        </div>
-
-        <button class="btn-cancel" onclick="cerrarModal()">Volver a editar compra</button>
-      </div>
-    </div>
-
-    <!-- Ticket / Comprobante de Compra Aprobada -->
-    <div class="modal-box success-box" id="successContent">
-      <div style="text-align:center; margin-bottom:12px;">
-        <div style="width:50px; height:50px; background:#dcfce7; color:#16a34a; font-size:26px; border-radius:50%; display:grid; place-items:center; margin:0 auto 10px;">✓</div>
-        <h3 style="color: #16a34a; font-size: 22px; margin:0;">¡Pago Aprobado y Acreditado!</h3>
-        <p style="font-size: 13px; color: #64748b; margin-top: 4px;">Transacción confirmada en Skylink Pay</p>
-      </div>
-
-      <div class="ticket" id="ticketPrint">
-        <div class="ticket-header">
-          <h4 style="font-size:14px; font-weight:800;">FACTURA DE VENTA · MI TIENDA C.A.</h4>
-          <p>RIF: J-50733628-0 · KIOSCO AUTOPAGO</p>
-          <p id="ticketDate">--/--/---- --:--</p>
-          <p>Control: <strong id="ticketIdentifier">AUTO-1001</strong></p>
-          <p>Cliente: <strong id="ticketCustomerName">--</strong></p>
-          <p>Cédula: <strong id="ticketCustomerId">--</strong></p>
-        </div>
-
-        <table class="ticket-table">
-          <thead>
-            <tr>
-              <th>CANT / PRODUCTO</th>
-              <th class="col-r">P.UNIT</th>
-              <th class="col-r">TOTAL</th>
-            </tr>
-          </thead>
-          <tbody id="ticketItemsBody"></tbody>
-        </table>
-
-        <div class="ticket-divider"></div>
-
-        <div class="ticket-total">
-          <span>TOTAL BOLÍVARES:</span>
-          <strong id="ticketTotalBS">Bs. 0.00</strong>
-        </div>
-        <div class="ticket-total" style="font-size:11px; color:#64748b; margin-top:2px;">
-          <span>TOTAL USD (BCV):</span>
-          <strong id="ticketTotalUSD">$0.00 USD</strong>
-        </div>
-
-        <div class="ticket-divider"></div>
-
-        <div class="ticket-info">
-          <p>Pasarela: <strong>Skylink Pay (Valink Group)</strong></p>
-          <p>Referencia Bancaria: <strong id="ticketRefBancaria">--</strong></p>
-          <p>ID Sesión: <span id="ticketSessionId">--</span></p>
-        </div>
-
-        <div class="ticket-badge-ok">
-          ✓ PAGO VALIDADO EN RED BANCARIA
-        </div>
-      </div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:14px;">
-        <button class="btn-print" onclick="window.print()">🖨️ Imprimir factura</button>
-        <a class="btn-finish" id="invoiceA4" target="_blank" rel="noopener" style="text-decoration:none;">🧾 Ver A4</a>
-        <button class="btn-finish" onclick="finalizarCompra()">✨ Nueva Compra</button>
-      </div>
-    </div>
   </div>
 
   <footer class="page-footer">
@@ -418,9 +287,6 @@
 
     let bcvRate = 37.50;
     let carrito = [];
-    let pollingInterval = null;
-    let sesionActual = null;
-    let carritoFinalizado = [];
     let mediaStream = null;
     let creating = false;
     let categoriaSeleccionada = 'Todos';
@@ -433,20 +299,8 @@
       box.hidden = !message;
     }
 
-    function getInvoiceData() {
-      return {
-        name: document.getElementById('invoiceName').value.trim(),
-        idNumber: document.getElementById('invoiceId').value.trim().toUpperCase()
-      };
-    }
-
-    function invoiceDataIsValid() {
-      const invoice = getInvoiceData();
-      return invoice.name.length >= 2 && /^(?:[VE]-?)?\d{5,10}$/i.test(invoice.idNumber);
-    }
-
     function actualizarEstadoPago() {
-      document.getElementById('btnPay').disabled = creating || carrito.length === 0 || !invoiceDataIsValid();
+      document.getElementById('btnPay').disabled = creating || carrito.length === 0;
     }
 
     function playBeep(freq = 800, dur = 0.1) {
@@ -548,7 +402,6 @@
           qty: 1
         });
       }
-      sesionActual = null;
       actualizarCarrito();
     }
 
@@ -560,13 +413,11 @@
         item.qty += delta;
       }
       carrito = carrito.filter(p => p.qty > 0);
-      sesionActual = null;
       actualizarCarrito();
     }
 
     function limpiarCarrito() {
       if (creating) return;
-      sesionActual = null;
       carrito = [];
       showError("");
       actualizarCarrito();
@@ -696,137 +547,19 @@
       }
     }
 
-    // Iniciar cobro con la API Real de Skylink Pay
-    async function iniciarCobro() {
+    // Paso 1: guardar la selección localmente y solicitar los datos de factura.
+    function iniciarCobro() {
       if (creating || carrito.length === 0) return;
-      if (!invoiceDataIsValid()) {
-        showError('Ingresa un nombre y una cédula válidos para generar la factura obligatoria.');
-        document.getElementById('invoiceName').focus();
-        return;
-      }
       showError("");
 
       const totalBs = carrito.reduce((sum, item) => sum + (item.priceBs * item.qty), 0);
-      const totalUsd = Number((totalBs / bcvRate).toFixed(2));
-      carritoFinalizado = JSON.parse(JSON.stringify(carrito));
-
-      const btnPay = document.getElementById('btnPay');
-      creating = true;
-      btnPay.disabled = true;
-      btnPay.innerHTML = '⚡ Conectando con Skylink Pay...';
-
-      try {
-        const invoice = getInvoiceData();
-        const res = await fetch('/api/create-payment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amountBs: totalBs,
-            description: `Kiosco (${carrito.length} productos)`,
-            items: carrito,
-            invoiceName: invoice.name,
-            invoiceId: invoice.idNumber
-          })
-        });
-
-        const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.message || 'Error al crear cobro en Skylink Pay');
-
-        sesionActual = json.data;
-        abrirModalPago(sesionActual, totalUsd, totalBs);
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        creating = false;
-        actualizarEstadoPago();
-        btnPay.innerHTML = '💳 Pagar con Skylink Pay <span>Acepta Pago Móvil C2P y Débito Inmediato</span>';
-      }
-    }
-
-    function abrirModalPago(session, totalUsd, totalBs) {
-      document.getElementById('selectAmountBs').textContent = `Bs. ${Number(totalBs).toFixed(2)}`;
-      document.getElementById('selectAmountUsd').textContent = `≈ $${Number(totalUsd).toFixed(2)} USD`;
-
-      const payUrl = session.payment_url || session.skylink_url;
-      document.getElementById('btnOpenOfficialScreen').href = payUrl;
-
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(payUrl)}`;
-      document.getElementById('qrImage').src = qrUrl;
-
-      document.getElementById('paymentContent').style.display = 'block';
-      document.getElementById('successContent').style.display = 'none';
-      document.getElementById('qrDisplayBox').style.display = 'none';
-      document.getElementById('modalPayment').style.display = 'flex';
-
-      // Monitoreo de estado
-      if (pollingInterval) clearInterval(pollingInterval);
-      pollingInterval = setInterval(() => consultarEstado(session.sessionId || session.identifier), 3000);
-    }
-
-    function mostrarQR() {
-      const box = document.getElementById('qrDisplayBox');
-      box.style.display = box.style.display === 'none' ? 'block' : 'none';
-    }
-
-    async function consultarEstado(sessionId) {
-      try {
-        const res = await fetch(`/api/session-info?session_id=${encodeURIComponent(sessionId)}`);
-        const json = await res.json();
-        if (!json.success || !json.data) return;
-
-        const data = json.data;
-        if (data.status === 'paid' || data.status === 'AUTHORIZED' || data.status === 'SUCCESS') {
-          clearInterval(pollingInterval);
-          playBeep(1200, 0.3);
-          mostrarTicket(data);
-        }
-      } catch (e) {}
-    }
-
-    function mostrarTicket(data) {
-      document.getElementById('paymentContent').style.display = 'none';
-      document.getElementById('successContent').style.display = 'block';
-
-      document.getElementById('ticketDate').textContent = new Date().toLocaleString('es-VE');
-      document.getElementById('ticketIdentifier').textContent = data.identifier || (sesionActual && sesionActual.identifier) || 'AUTO-1001';
-      document.getElementById('ticketCustomerName').textContent = data.clientName || data.invoice?.name || '--';
-      document.getElementById('ticketCustomerId').textContent = data.clientId || data.invoice?.idNumber || '--';
-      document.getElementById('invoiceA4').href = `/factura?order_id=${encodeURIComponent(data.identifier || data.orderId)}`;
-
-      const tbody = document.getElementById('ticketItemsBody');
-      tbody.innerHTML = '';
-      let totalBs = 0;
-
-      carritoFinalizado.forEach(item => {
-        const subBs = item.priceBs * item.qty;
-        totalBs += subBs;
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td><strong>${item.qty}x</strong> ${item.name}</td>
-          <td class="col-r">Bs. ${item.priceBs.toFixed(2)}</td>
-          <td class="col-r"><strong>Bs. ${subBs.toFixed(2)}</strong></td>
-        `;
-        tbody.appendChild(row);
-      });
-
-      document.getElementById('ticketTotalBS').textContent = `Bs. ${totalBs.toFixed(2)}`;
-      document.getElementById('ticketTotalUSD').textContent = `$${(totalBs / bcvRate).toFixed(2)} USD`;
-      document.getElementById('ticketRefBancaria').textContent = data.reference || 'SK-' + Math.floor(10000000 + Math.random() * 90000000);
-      document.getElementById('ticketSessionId').textContent = data.sessionId || (sesionActual && sesionActual.sessionId) || 'SKYLINK';
-    }
-
-    function finalizarCompra() {
-      cerrarModal();
-      limpiarCarrito();
-      document.getElementById('invoiceName').value = '';
-      document.getElementById('invoiceId').value = '';
-      actualizarEstadoPago();
-    }
-
-    function cerrarModal() {
-      if (pollingInterval) clearInterval(pollingInterval);
-      document.getElementById('modalPayment').style.display = 'none';
-      document.getElementById('btnPay').focus();
+      sessionStorage.setItem('skypayCheckout', JSON.stringify({
+        items: carrito,
+        totalBs: Number(totalBs.toFixed(2)),
+        bcvRate,
+        createdAt: new Date().toISOString()
+      }));
+      window.location.href = '/datos-factura';
     }
 
     // Reloj en tiempo real
@@ -844,8 +577,6 @@
     document.getElementById('barcodeInput').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') procesarCodigoManual();
     });
-    document.getElementById('invoiceName').addEventListener('input', actualizarEstadoPago);
-    document.getElementById('invoiceId').addEventListener('input', actualizarEstadoPago);
   </script>
 </body>
 </html>

@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Datos de factura · SkyPay</title>
+  <style>
+    :root { color-scheme: light; --ink:#10241c; --muted:#66756e; --line:#dce5df; --soft:#f4f8f5; --accent:#21543d; --danger:#9b3d2c; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:#f5f7f5; }
+    button,input,a { font:inherit; }
+    .shell { width:min(100% - 28px,680px); margin:0 auto; padding:28px 0 46px; }
+    .brand { display:flex; align-items:center; gap:10px; color:var(--ink); text-decoration:none; font-weight:800; margin-bottom:24px; }
+    .brand-mark { width:38px; height:38px; display:grid; place-items:center; border-radius:11px; background:#0f1d2f; color:#fff; font-size:21px; }
+    .steps { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:18px; }
+    .step { padding:9px 5px; border-radius:9px; background:#e8ede9; color:#6c7972; text-align:center; font-size:11px; font-weight:700; }
+    .step.done { color:#2d6249; background:#e3f1e8; }
+    .step.active { color:#fff; background:var(--accent); }
+    .card { background:#fff; border:1px solid var(--line); border-radius:20px; padding:clamp(22px,5vw,36px); box-shadow:0 16px 45px rgba(25,50,37,.07); }
+    .eyebrow { margin:0 0 8px; color:#39755a; font-size:11px; font-weight:800; letter-spacing:1.3px; text-transform:uppercase; }
+    h1 { margin:0; font-size:clamp(25px,6vw,34px); line-height:1.15; letter-spacing:-.8px; }
+    .intro { margin:10px 0 24px; color:var(--muted); }
+    .summary { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px; margin-bottom:24px; border:1px solid var(--line); border-radius:13px; background:var(--soft); }
+    .summary small { display:block; color:var(--muted); }
+    .summary strong { font-size:22px; white-space:nowrap; }
+    .field { margin-bottom:16px; }
+    label { display:block; margin-bottom:6px; font-size:12px; font-weight:750; }
+    input { width:100%; min-height:50px; padding:12px 14px; border:1px solid #cbd7cf; border-radius:10px; color:var(--ink); background:#fff; outline:none; }
+    input:focus { border-color:#4b8067; box-shadow:0 0 0 3px #dcece3; }
+    .hint { margin:-8px 0 20px; color:var(--muted); font-size:12px; }
+    .primary,.secondary { width:100%; min-height:52px; border-radius:10px; display:flex; align-items:center; justify-content:center; border:0; text-decoration:none; cursor:pointer; font-weight:750; }
+    .primary { color:#fff; background:var(--accent); }
+    .primary:hover { background:#173d2c; }
+    .primary:disabled { opacity:.58; cursor:wait; }
+    .secondary { margin-top:10px; color:var(--ink); border:1px solid var(--line); background:#fff; }
+    .back { display:inline-flex; margin-top:18px; color:var(--muted); text-decoration:none; font-size:13px; }
+    .message { margin:14px 0 0; padding:11px 13px; border-radius:9px; font-size:13px; }
+    .error { color:var(--danger); border:1px solid #efd3ca; background:#fff2ee; }
+    .monitor { margin:18px 0 0; padding:15px; border:1px solid #cae0d3; border-radius:12px; background:#f1f8f4; text-align:center; color:#2f624a; font-size:13px; }
+    .pulse { display:inline-block; width:8px; height:8px; margin-right:7px; border-radius:50%; background:#28a267; animation:pulse 1.4s infinite; }
+    @keyframes pulse { 50% { opacity:.3; transform:scale(.78); } }
+    .qr { display:none; text-align:center; margin-top:16px; padding-top:16px; border-top:1px solid var(--line); }
+    .qr img { width:min(220px,70vw); aspect-ratio:1; border:1px solid var(--line); border-radius:12px; padding:8px; }
+    [hidden] { display:none !important; }
+    @media (max-width:520px) {
+      .shell { width:min(100% - 20px,680px); padding-top:16px; }
+      .brand { margin-bottom:16px; }
+      .steps { gap:3px; }
+      .step { font-size:9px; padding:8px 2px; }
+      .card { border-radius:16px; padding:22px 18px; }
+      .summary { align-items:flex-start; flex-direction:column; gap:5px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <a class="brand" href="/autopago"><span class="brand-mark">⚡</span><span>SkyPay Autopago</span></a>
+
+    <nav class="steps" aria-label="Progreso de compra">
+      <div class="step done">1. Productos</div>
+      <div class="step active" id="stepInvoice">2. Datos</div>
+      <div class="step" id="stepPayment">3. Pago</div>
+      <div class="step">4. Factura</div>
+    </nav>
+
+    <section class="card" id="missingCart" hidden>
+      <p class="eyebrow">Tu compra</p>
+      <h1>No hay productos seleccionados</h1>
+      <p class="intro">Regresa al kiosco y agrega al menos un producto antes de continuar.</p>
+      <a class="primary" href="/autopago">Elegir productos</a>
+    </section>
+
+    <section class="card" id="invoiceStep">
+      <p class="eyebrow">Paso 2 de 4</p>
+      <h1>Datos para tu factura</h1>
+      <p class="intro">Sólo necesitamos nombre y cédula. La conexión con Skylink comenzará al continuar.</p>
+
+      <div class="summary">
+        <div><small id="itemCount">0 productos</small><span>Total de la compra</span></div>
+        <strong id="orderTotal">Bs. 0.00</strong>
+      </div>
+
+      <form id="invoiceForm" novalidate>
+        <div class="field">
+          <label for="invoiceName">Nombre y apellido</label>
+          <input id="invoiceName" name="invoiceName" autocomplete="name" maxlength="80" placeholder="Ej: María Pérez" required>
+        </div>
+        <div class="field">
+          <label for="invoiceId">Cédula</label>
+          <input id="invoiceId" name="invoiceId" maxlength="12" placeholder="Ej: V-12345678" required>
+        </div>
+        <p class="hint">Estos datos aparecerán en la factura. No solicitamos dirección ni correo.</p>
+        <button class="primary" id="continueButton" type="submit">Continuar al pago</button>
+        <p class="message error" id="formError" role="alert" hidden></p>
+      </form>
+      <a class="back" href="/autopago">← Volver a productos</a>
+    </section>
+
+    <section class="card" id="paymentStep" hidden>
+      <p class="eyebrow">Paso 3 de 4</p>
+      <h1>Completa el pago</h1>
+      <p class="intro">Tu factura ya está preparada. Finaliza el pago en la pantalla oficial de Skylink.</p>
+      <div class="summary">
+        <div><small>Importe exacto</small><span id="payerName">Cliente</span></div>
+        <strong id="paymentTotal">Bs. 0.00</strong>
+      </div>
+      <a class="primary" id="officialCheckout" target="_blank" rel="noopener noreferrer">Abrir Skylink Pay ↗</a>
+      <button class="secondary" id="toggleQr" type="button">Pagar desde otro teléfono con QR</button>
+      <div class="qr" id="qrBox"><img id="qrImage" alt="Código QR para pagar con Skylink"></div>
+      <div class="monitor" id="paymentStatus"><span class="pulse"></span>Esperando confirmación del pago…</div>
+      <p class="message error" id="paymentError" role="alert" hidden></p>
+      <a class="back" href="/autopago">← Cancelar y volver al carrito</a>
+    </section>
+  </main>
+
+  <script>
+    const checkout = (() => {
+      try { return JSON.parse(sessionStorage.getItem('skypayCheckout') || 'null'); }
+      catch { return null; }
+    })();
+    let currentOrder = null;
+    let pollingTimer = null;
+
+    const money = value => `Bs. ${Number(value || 0).toFixed(2)}`;
+    const setError = (element, message) => {
+      element.textContent = message || '';
+      element.hidden = !message;
+    };
+
+    function validCheckout() {
+      return checkout && Array.isArray(checkout.items) && checkout.items.length > 0 && Number(checkout.totalBs) > 0;
+    }
+
+    if (!validCheckout()) {
+      document.getElementById('invoiceStep').hidden = true;
+      document.getElementById('missingCart').hidden = false;
+    } else {
+      const units = checkout.items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+      document.getElementById('itemCount').textContent = `${units} ${units === 1 ? 'producto' : 'productos'}`;
+      document.getElementById('orderTotal').textContent = money(checkout.totalBs);
+      document.getElementById('paymentTotal').textContent = money(checkout.totalBs);
+    }
+
+    function invoiceIsValid(name, idNumber) {
+      return name.length >= 2 && /^(?:[VE]-?)?\d{5,10}$/i.test(idNumber);
+    }
+
+    document.getElementById('invoiceForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      const name = document.getElementById('invoiceName').value.trim();
+      const idNumber = document.getElementById('invoiceId').value.trim().toUpperCase();
+      const errorBox = document.getElementById('formError');
+      const button = document.getElementById('continueButton');
+
+      if (!invoiceIsValid(name, idNumber)) {
+        setError(errorBox, 'Ingresa un nombre y una cédula válidos para continuar.');
+        return;
+      }
+
+      setError(errorBox, '');
+      button.disabled = true;
+      button.textContent = 'Conectando con Skylink…';
+
+      try {
+        const response = await fetch('/api/create-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amountBs: checkout.totalBs,
+            description: `Kiosco (${checkout.items.length} productos)`,
+            items: checkout.items,
+            invoiceName: name,
+            invoiceId: idNumber
+          })
+        });
+        const json = await response.json();
+        if (!response.ok || !json.success || !json.data) {
+          throw new Error(json.message || 'No se pudo iniciar el pago con Skylink.');
+        }
+
+        currentOrder = json.data;
+        sessionStorage.setItem('skypayOrderId', currentOrder.identifier || currentOrder.orderId);
+        showPaymentStep(name);
+      } catch (error) {
+        setError(errorBox, error.message);
+        button.disabled = false;
+        button.textContent = 'Continuar al pago';
+      }
+    });
+
+    function showPaymentStep(name) {
+      const paymentUrl = currentOrder.payment_url || currentOrder.skylink_url;
+      document.getElementById('invoiceStep').hidden = true;
+      document.getElementById('paymentStep').hidden = false;
+      document.getElementById('stepInvoice').className = 'step done';
+      document.getElementById('stepPayment').className = 'step active';
+      document.getElementById('payerName').textContent = name;
+      document.getElementById('officialCheckout').href = paymentUrl;
+      document.getElementById('qrImage').dataset.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(paymentUrl)}`;
+      checkPaymentStatus();
+      pollingTimer = setInterval(checkPaymentStatus, 2000);
+    }
+
+    document.getElementById('toggleQr').addEventListener('click', () => {
+      const box = document.getElementById('qrBox');
+      const image = document.getElementById('qrImage');
+      const opening = box.style.display !== 'block';
+      box.style.display = opening ? 'block' : 'none';
+      if (opening && !image.src) image.src = image.dataset.src;
+    });
+
+    async function checkPaymentStatus() {
+      if (!currentOrder) return;
+      const id = currentOrder.identifier || currentOrder.orderId;
+      try {
+        const response = await fetch(`/api/order-status/${encodeURIComponent(id)}`);
+        const json = await response.json();
+        if (!json.success || !json.data) return;
+
+        if (json.data.status === 'paid') {
+          clearInterval(pollingTimer);
+          document.getElementById('paymentStatus').innerHTML = '✓ Pago confirmado. Preparando tu factura…';
+          sessionStorage.removeItem('skypayCheckout');
+          window.setTimeout(() => {
+            window.location.href = `/factura?order_id=${encodeURIComponent(id)}`;
+          }, 650);
+        } else if (json.data.status === 'failed') {
+          clearInterval(pollingTimer);
+          setError(document.getElementById('paymentError'), 'El pago fue rechazado. Regresa al carrito para intentarlo nuevamente.');
+        }
+      } catch {}
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && currentOrder) checkPaymentStatus();
+    });
+    window.addEventListener('beforeunload', () => clearInterval(pollingTimer));
+  </script>
+</body>
+</html>

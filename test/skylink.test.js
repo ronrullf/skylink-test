@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const https = require('node:https');
+const fs = require('node:fs');
 process.env.SKYLINK_BASE_URL = 'https://dev-axis-payment.valinkgroup.com';
 process.env.SKYLINK_API_KEY = 'test-secret';
 process.env.SKYLINK_COMMERCE_CODE = 'test-commerce';
@@ -181,4 +182,16 @@ test('kiosk requires invoice identity and synchronizes the provider payment stat
   assert.equal(order.data.data.reference, 'BANK-001');
   assert.equal(order.data.data.invoice.name, 'María Pérez');
   assert.equal(order.data.data.invoice.idNumber, 'V-12345678');
+});
+
+test('kiosk defers Skylink until the separate invoice-data step', () => {
+  const productsPage = fs.readFileSync(require.resolve('../public/autopago.html'), 'utf8');
+  const invoiceDataPage = fs.readFileSync(require.resolve('../public/datos-factura.html'), 'utf8');
+
+  assert.doesNotMatch(productsPage, /\/api\/create-payment/);
+  assert.match(productsPage, /window\.location\.href = '\/datos-factura'/);
+  assert.match(invoiceDataPage, /Nombre y apellido/);
+  assert.match(invoiceDataPage, /Cédula/);
+  assert.match(invoiceDataPage, /fetch\('\/api\/create-payment'/);
+  assert.match(invoiceDataPage, /window\.location\.href = `\/factura\?order_id=/);
 });

@@ -177,9 +177,21 @@
     }
     .btn-sub-action:hover { background: #e2e8f0; }
 
+    .invoice-loading {
+      background: white; border: 1px solid #e2e8f0; border-radius: 14px;
+      padding: 18px; text-align: center; color: #64748b; font-size: 13px;
+    }
+    .invoice-actions { display: none; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .invoice-actions button, .invoice-actions a {
+      min-height: 48px; border-radius: 10px; display: flex; align-items: center;
+      justify-content: center; border: 1px solid #cbd5e1; background: white;
+      color: #334155; text-decoration: none; font-weight: 750; cursor: pointer;
+    }
+    .invoice-actions .primary { background: #21543d; color: white; border-color: #21543d; }
+
     @media print {
       body { background: white; padding: 0; }
-      .shipping-section, .action-links, .btn-whatsapp-send { display: none !important; }
+      .shipping-section, .action-links, .btn-whatsapp-send, .invoice-actions, .invoice-loading { display: none !important; }
       .invoice-card { box-shadow: none; border: none; padding: 0; }
     }
   </style>
@@ -187,6 +199,8 @@
 <body>
 
   <div class="invoice-wrapper">
+
+    <div class="invoice-loading" id="invoiceLoading">Verificando el pago y preparando la factura…</div>
 
     <!-- FACTURA DIGITAL -->
     <div class="invoice-card" id="invoiceCard" style="display:none;">
@@ -244,8 +258,13 @@
       </div>
     </div>
 
+    <div class="invoice-actions" id="invoiceActions">
+      <button class="primary" onclick="window.print()">🖨️ Imprimir factura</button>
+      <a href="/autopago">✨ Nueva compra</a>
+    </div>
+
     <!-- SECCIÓN DE ENVÍO Y DESPACHO -->
-    <div class="shipping-section">
+    <div class="shipping-section" id="shippingSection">
       <div class="shipping-section-title">
         📦 Registro de Datos de Despacho
       </div>
@@ -321,7 +340,12 @@
 
         if (currentOrder.status !== 'paid') throw new Error('El pago todavía no ha sido confirmado por Skylink Pay.');
 
+        document.getElementById('invoiceLoading').style.display = 'none';
         document.getElementById('invoiceCard').style.display = 'block';
+        document.getElementById('invoiceActions').style.display = 'grid';
+        if (currentOrder.source === 'kiosk') {
+          document.getElementById('shippingSection').style.display = 'none';
+        }
         document.getElementById('invoiceStoreName').textContent = currentOrder.storeName || 'MI TIENDA C.A.';
         document.getElementById('invoiceOrderId').textContent = currentOrder.orderId || orderId;
         const invoiceDate = currentOrder.paidAt || currentOrder.createdAt;
@@ -376,6 +400,7 @@
 
       } catch (e) {
         console.error(e);
+        document.getElementById('invoiceLoading').textContent = e.message || 'No se pudo cargar la factura.';
       }
     }
 

@@ -36,6 +36,7 @@ function handleStatic(req, res) {
   let requestedFile = pathname;
   if (requestedFile === '/' || requestedFile === '') requestedFile = 'index.html';
   else if (requestedFile === '/autopago' || requestedFile === '/kiosco') requestedFile = 'autopago.html';
+  else if (requestedFile === '/datos-factura') requestedFile = 'datos-factura.html';
   else if (requestedFile === '/admin') requestedFile = 'admin.html';
   else if (requestedFile === '/checkout') requestedFile = 'checkout.html';
   else if (requestedFile === '/factura') requestedFile = 'factura.html';

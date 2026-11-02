@@ -37,6 +37,7 @@ Implementación integral de pasarela de pagos con **Skylink Pay (Valink Group)**
 | Módulo / Función | Ruta en Vercel / Producción | Ruta en Localhost |
 | :--- | :--- | :--- |
 | 🛒 **Kiosco de Autopago** | `https://tu-app.vercel.app/autopago` (o `/`) | `http://localhost:3000/autopago` |
+| 🧾 **Datos obligatorios de factura** | `https://tu-app.vercel.app/datos-factura` | `http://localhost:3000/datos-factura` |
 | 📦 **Admin Creación de Links** | `https://tu-app.vercel.app/admin` | `http://localhost:3000/admin` |
 | 🤖 **Agente Chat WhatsApp IA** | `https://tu-app.vercel.app/chat` | `http://localhost:3000/chat` |
 | 🔍 **Verificación Previa Cliente** | `https://tu-app.vercel.app/checkout?order_id=...` | `http://localhost:3000/checkout?order_id=...` |

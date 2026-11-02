@@ -4,6 +4,7 @@
     { "source": "/", "destination": "/index.html" },
     { "source": "/autopago", "destination": "/autopago.html" },
     { "source": "/kiosco", "destination": "/autopago.html" },
+    { "source": "/datos-factura", "destination": "/datos-factura.html" },
     { "source": "/admin", "destination": "/admin.html" },
     { "source": "/chat", "destination": "/chat.html" },
     { "source": "/whatsapp", "destination": "/chat.html" },
