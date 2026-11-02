@@ -25,9 +25,35 @@ let storeSettings = {
 
 // Almacén en memoria de órdenes, transacciones y webhooks
 const sessions = new Map();
-let latestSession = null;
 const orders = new Map();
 const webhookLogs = [];
+
+function indexPayment(record) {
+  for (const key of [record.identifier, record.orderId, record.sessionId, record.token]) {
+    if (!key) continue;
+    orders.set(key, record);
+    sessions.set(key, record);
+  }
+}
+
+async function refreshPaymentStatus(record) {
+  if (!record || !record.token || record.status !== 'pending') return record;
+
+  const result = await fetchSkylinkPay(`/api/v1/merchant/transactions/token/${record.token}`, 'GET');
+  if (!result.ok || !result.data) return record;
+
+  const transaction = result.data.data || result.data;
+  const upstreamStatus = String(transaction.status || '').toUpperCase();
+  if (['AUTHORIZED', 'PAID', 'SUCCESS', 'APPROVED'].includes(upstreamStatus)) {
+    record.status = 'paid';
+    record.reference = transaction.reference || transaction.authorizationCode || record.reference || '';
+    record.paymentMethod = transaction.paymentMethod || transaction.payment_method || record.paymentMethod || 'Skylink Pay';
+    record.paidAt = transaction.paidAt || transaction.paid_at || new Date().toISOString();
+  } else if (['FAILED', 'REJECTED', 'CANCELLED', 'EXPIRED'].includes(upstreamStatus)) {
+    record.status = 'failed';
+  }
+  return record;
+}
 
 // Catálogo de productos oficial (Todos en el rango de 20 a 25 Bs)
 let CATALOGO_PRODUCTOS = [
@@ -541,6 +567,15 @@ async function handleApi(req, res) {
     // ==========================================
     if (pathname === '/api/create-payment' && req.method === 'POST') {
       const payload = await getRequestBody(req);
+      const invoiceName = String(payload.invoiceName || payload.clientName || '').trim();
+      const invoiceId = String(payload.invoiceId || payload.clientId || '').trim();
+      if (invoiceName.length < 2 || !/^(?:[VE]-?)?\d{5,10}$/i.test(invoiceId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          message: 'Nombre y cédula válidos son obligatorios para generar la factura.'
+        }));
+      }
       let amountBs = 0;
 
       if (Array.isArray(payload.items) && payload.items.length > 0) {
@@ -573,6 +608,7 @@ async function handleApi(req, res) {
 
       const sessionData = {
         identifier,
+        orderId: identifier,
         sessionId,
         token,
         amount: amountUsd,
@@ -581,36 +617,27 @@ async function handleApi(req, res) {
         bcvRate,
         description: payload.description || 'Compra Kiosco Skylink Pay',
         items: payload.items || [],
+        clientName: invoiceName,
+        clientId: invoiceId.toUpperCase(),
+        invoice: {
+          required: true,
+          name: invoiceName,
+          idNumber: invoiceId.toUpperCase()
+        },
         payment_url: skylinkPayUrl,
         skylink_url: skylinkPayUrl,
         status: 'pending',
         createdAt: new Date().toISOString()
       };
 
-      sessions.set(identifier, sessionData);
-      sessions.set(sessionId, sessionData);
-      sessions.set(token, sessionData);
-      latestSession = sessionData;
-
-      orders.set(identifier, {
-        orderId: identifier,
-        sessionId,
-        token,
-        amount: amountUsd,
+      indexPayment(sessionData);
+      Object.assign(sessionData, {
         amountVes: amountBs,
-        amountCentimos,
-        bcvRate,
-        description: sessionData.description,
-        items: sessionData.items,
-        clientName: 'Cliente Kiosco',
         clientPhone: '',
         storePhone: storeSettings.storePhone,
         storeName: storeSettings.storeName,
         paymentUrl: skylinkPayUrl,
-        skylinkUrl: skylinkPayUrl,
-        status: 'pending',
-        source: 'kiosk',
-        createdAt: sessionData.createdAt
+        source: 'kiosk'
       });
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -639,18 +666,10 @@ async function handleApi(req, res) {
         return res.end(JSON.stringify({ success: false, message: 'Orden no encontrada' }));
       }
 
-      if (order.token && order.status === 'pending') {
-        try {
-          const skylinkStatus = await fetchSkylinkPay(`/api/v1/merchant/transactions/token/${order.token}`, 'GET');
-          if (skylinkStatus.ok && skylinkStatus.data) {
-            const st = skylinkStatus.data.status || (skylinkStatus.data.data && skylinkStatus.data.data.status);
-            if (st === 'AUTHORIZED' || st === 'paid' || st === 'SUCCESS') {
-              order.status = 'paid';
-              order.reference = skylinkStatus.data.reference || order.reference || 'SK-' + Math.floor(10000000 + Math.random() * 90000000);
-              await dispatchOutboundWebhook('payment.success', order);
-            }
-          }
-        } catch (e) {}
+      const previousStatus = order.status;
+      try { await refreshPaymentStatus(order); } catch (e) {}
+      if (previousStatus !== 'paid' && order.status === 'paid') {
+        await dispatchOutboundWebhook('payment.success', order);
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -766,7 +785,7 @@ async function handleApi(req, res) {
     // ==========================================
     // 11. REINTENTO DE ORDEN Y GUÍAS DE ENVÍO
     // ==========================================
-    if (pathname === '/api/retry-order' && req.method === 'POST') {
+    if ((pathname === '/api/retry-order' || pathname === '/api/retry-payment') && req.method === 'POST') {
       const payload = await getRequestBody(req);
       const id = payload.order_id || payload.orderId;
       const prevOrder = orders.get(id);
@@ -800,6 +819,7 @@ async function handleApi(req, res) {
         amountCentimos,
         bcvRate,
         paymentUrl: skylinkPayUrl,
+        payment_url: skylinkPayUrl,
         skylinkUrl: skylinkPayUrl,
         description: prevOrder.description,
         items: prevOrder.items,
@@ -853,13 +873,14 @@ async function handleApi(req, res) {
     if (pathname === '/api/session-info' && req.method === 'GET') {
       const ref = parsedUrl.searchParams.get('ref');
       const sessionId = parsedUrl.searchParams.get('session_id') || parsedUrl.searchParams.get('sessionId');
-      const stored = sessions.get(ref) || sessions.get(sessionId) || latestSession;
+      const stored = sessions.get(ref) || sessions.get(sessionId);
 
       if (!stored) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, message: 'Sesión no encontrada' }));
       }
 
+      try { await refreshPaymentStatus(stored); } catch (e) {}
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: true, data: stored }));
     }

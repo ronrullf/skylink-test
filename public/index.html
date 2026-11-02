@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kiosco Autopago · SkyPay (Skylink Pay)</title>
-  <script src="/zxing.min.js"></script>
   <link rel="stylesheet" href="/pay-ui.css">
   <style>
     /* Estilos mejorados para Kiosco Autopago */
@@ -251,6 +250,19 @@
         </div>
       </div>
 
+      <div style="border-top:1px solid #e2e8f0; padding-top:16px; margin-top:10px;">
+        <div style="font-size:13px; font-weight:800; margin-bottom:10px;">🧾 Datos obligatorios para la factura</div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label class="form-label" for="invoiceName">Nombre y apellido</label>
+          <input class="form-input" id="invoiceName" autocomplete="name" placeholder="Ej: María Pérez" maxlength="80">
+        </div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label class="form-label" for="invoiceId">Cédula</label>
+          <input class="form-input" id="invoiceId" inputmode="numeric" autocomplete="off" placeholder="Ej: V-12345678" maxlength="12">
+        </div>
+        <p class="helper" style="margin-top:0;">Se incluirán en la factura impresa. No solicitamos otros datos.</p>
+      </div>
+
       <p id="paymentError" class="inline-message" role="alert" hidden></p>
       
       <button class="btn-pay" id="btnPay" disabled onclick="iniciarCobro()">
@@ -329,10 +341,12 @@
 
       <div class="ticket" id="ticketPrint">
         <div class="ticket-header">
-          <h4 style="font-size:14px; font-weight:800;">MI TIENDA C.A.</h4>
+          <h4 style="font-size:14px; font-weight:800;">FACTURA DE VENTA · MI TIENDA C.A.</h4>
           <p>RIF: J-50733628-0 · KIOSCO AUTOPAGO</p>
           <p id="ticketDate">--/--/---- --:--</p>
           <p>Control: <strong id="ticketIdentifier">AUTO-1001</strong></p>
+          <p>Cliente: <strong id="ticketCustomerName">--</strong></p>
+          <p>Cédula: <strong id="ticketCustomerId">--</strong></p>
         </div>
 
         <table class="ticket-table">
@@ -370,8 +384,9 @@
         </div>
       </div>
 
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:14px;">
-        <button class="btn-print" onclick="window.print()">🖨️ Imprimir Ticket</button>
+      <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:14px;">
+        <button class="btn-print" onclick="window.print()">🖨️ Imprimir factura</button>
+        <a class="btn-finish" id="invoiceA4" target="_blank" rel="noopener" style="text-decoration:none;">🧾 Ver A4</a>
         <button class="btn-finish" onclick="finalizarCompra()">✨ Nueva Compra</button>
       </div>
     </div>
@@ -409,11 +424,29 @@
     let mediaStream = null;
     let creating = false;
     let categoriaSeleccionada = 'Todos';
+    let lastScanCode = '';
+    let lastScanAt = 0;
 
     function showError(message) {
       const box = document.getElementById("paymentError");
       box.textContent = message;
       box.hidden = !message;
+    }
+
+    function getInvoiceData() {
+      return {
+        name: document.getElementById('invoiceName').value.trim(),
+        idNumber: document.getElementById('invoiceId').value.trim().toUpperCase()
+      };
+    }
+
+    function invoiceDataIsValid() {
+      const invoice = getInvoiceData();
+      return invoice.name.length >= 2 && /^(?:[VE]-?)?\d{5,10}$/i.test(invoice.idNumber);
+    }
+
+    function actualizarEstadoPago() {
+      document.getElementById('btnPay').disabled = creating || carrito.length === 0 || !invoiceDataIsValid();
     }
 
     function playBeep(freq = 800, dur = 0.1) {
@@ -587,10 +620,16 @@
       const totalUsd = (totalBs / bcvRate).toFixed(2);
       totalBsEl.textContent = `Bs. ${totalBs.toFixed(2)}`;
       totalUsdEl.textContent = `$${totalUsd}`;
-      btnPay.disabled = false;
+      actualizarEstadoPago();
     }
 
-    function simularEscaneo(codigo) {
+    function simularEscaneo(codigo, fromCamera = false) {
+      if (fromCamera) {
+        const now = Date.now();
+        if (codigo === lastScanCode && now - lastScanAt < 1200) return;
+        lastScanCode = codigo;
+        lastScanAt = now;
+      }
       const prod = PRODUCTOS.find(p => p.code === codigo);
       if (prod) {
         agregarProducto(prod);
@@ -634,12 +673,18 @@
 
         if ('BarcodeDetector' in window) {
           const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'qr_code'] });
-          const scan = async () => {
+          let lastDetectionAt = 0;
+          const scan = async (timestamp = 0) => {
             if (!mediaStream) return;
+            if (timestamp - lastDetectionAt < 120) {
+              requestAnimationFrame(scan);
+              return;
+            }
+            lastDetectionAt = timestamp;
             try {
               const barcodes = await detector.detect(video);
               if (barcodes.length > 0) {
-                simularEscaneo(barcodes[0].rawValue);
+                simularEscaneo(barcodes[0].rawValue, true);
               }
             } catch (e) {}
             requestAnimationFrame(scan);
@@ -654,6 +699,11 @@
     // Iniciar cobro con la API Real de Skylink Pay
     async function iniciarCobro() {
       if (creating || carrito.length === 0) return;
+      if (!invoiceDataIsValid()) {
+        showError('Ingresa un nombre y una cédula válidos para generar la factura obligatoria.');
+        document.getElementById('invoiceName').focus();
+        return;
+      }
       showError("");
 
       const totalBs = carrito.reduce((sum, item) => sum + (item.priceBs * item.qty), 0);
@@ -666,13 +716,16 @@
       btnPay.innerHTML = '⚡ Conectando con Skylink Pay...';
 
       try {
+        const invoice = getInvoiceData();
         const res = await fetch('/api/create-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             amountBs: totalBs,
             description: `Kiosco (${carrito.length} productos)`,
-            items: carrito
+            items: carrito,
+            invoiceName: invoice.name,
+            invoiceId: invoice.idNumber
           })
         });
 
@@ -685,7 +738,7 @@
         showError(err.message);
       } finally {
         creating = false;
-        btnPay.disabled = carrito.length === 0;
+        actualizarEstadoPago();
         btnPay.innerHTML = '💳 Pagar con Skylink Pay <span>Acepta Pago Móvil C2P y Débito Inmediato</span>';
       }
     }
@@ -736,6 +789,9 @@
 
       document.getElementById('ticketDate').textContent = new Date().toLocaleString('es-VE');
       document.getElementById('ticketIdentifier').textContent = data.identifier || (sesionActual && sesionActual.identifier) || 'AUTO-1001';
+      document.getElementById('ticketCustomerName').textContent = data.clientName || data.invoice?.name || '--';
+      document.getElementById('ticketCustomerId').textContent = data.clientId || data.invoice?.idNumber || '--';
+      document.getElementById('invoiceA4').href = `/factura?order_id=${encodeURIComponent(data.identifier || data.orderId)}`;
 
       const tbody = document.getElementById('ticketItemsBody');
       tbody.innerHTML = '';
@@ -762,6 +818,9 @@
     function finalizarCompra() {
       cerrarModal();
       limpiarCarrito();
+      document.getElementById('invoiceName').value = '';
+      document.getElementById('invoiceId').value = '';
+      actualizarEstadoPago();
     }
 
     function cerrarModal() {
@@ -785,6 +844,8 @@
     document.getElementById('barcodeInput').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') procesarCodigoManual();
     });
+    document.getElementById('invoiceName').addEventListener('input', actualizarEstadoPago);
+    document.getElementById('invoiceId').addEventListener('input', actualizarEstadoPago);
   </script>
 </body>
 </html>

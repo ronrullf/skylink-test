@@ -90,7 +90,7 @@ test('all four creation routes fail closed; failed orders are not saved; setting
   assert.equal((await invoke('/api/create-order-link', { amount: -2 })).status, 400);
   assert.equal((await invoke('/api/create-order-link', { amount: 0 })).status, 400);
   for (const [url, body] of [
-    ['/api/create-payment', { amount: 1 }],
+    ['/api/create-payment', { amount: 1, invoiceName: 'María Pérez', invoiceId: 'V-12345678' }],
     ['/api/create-order-link', { amount: 1 }],
     ['/api/agent-chat', { message: 'quiero arroz' }]
   ]) {
@@ -136,7 +136,10 @@ test('kiosk and admin creation routes use the shared canonical HMAC transport', 
   const handler = require('../api/index');
   for (const url of ['/api/create-payment', '/api/create-order-link']) {
     let status, result;
-    await handler({ url, method: 'POST', body: { amount: 1 }, headers: { host: 'localhost' } }, {
+    const body = url === '/api/create-payment'
+      ? { amount: 1, invoiceName: 'María Pérez', invoiceId: 'V-12345678' }
+      : { amount: 1 };
+    await handler({ url, method: 'POST', body, headers: { host: 'localhost' } }, {
       setHeader() {}, writeHead(code) { status = code; }, end(text) { result = JSON.parse(text); }
     });
     assert.equal(status, 200);
@@ -145,4 +148,37 @@ test('kiosk and admin creation routes use the shared canonical HMAC transport', 
     assert.equal(result.data.amountCentimos, 3750);
   }
   assert.equal(requests, 2);
+});
+
+test('kiosk requires invoice identity and synchronizes the provider payment status', async t => {
+  t.mock.method(client, 'request', async (endpoint, method) => {
+    if (method === 'GET') {
+      return { ok: true, status: 200, data: { success: true, data: {
+        status: 'AUTHORIZED', reference: 'BANK-001', payment_method: 'mobile_payment'
+      } } };
+    }
+    return { ok: true, status: 201, data: { success: true, data: {
+      token: 'invoice-token', url: `${process.env.SKYLINK_BASE_URL}/pay/invoice-token`
+    } } };
+  });
+  delete require.cache[require.resolve('../api/index')];
+  const handler = require('../api/index');
+  async function invoke(url, body, method = 'POST') {
+    let status, data;
+    await handler({ url, method, body, headers: { host: 'localhost' } }, {
+      setHeader() {}, writeHead(code) { status = code; }, end(text) { data = JSON.parse(text); }
+    });
+    return { status, data };
+  }
+
+  assert.equal((await invoke('/api/create-payment', { amount: 1 })).status, 400);
+  const created = await invoke('/api/create-payment', {
+    amount: 1, invoiceName: 'María Pérez', invoiceId: 'V-12345678'
+  });
+  assert.equal(created.status, 200);
+  const order = await invoke(`/api/order-status/${created.data.data.identifier}`, null, 'GET');
+  assert.equal(order.data.data.status, 'paid');
+  assert.equal(order.data.data.reference, 'BANK-001');
+  assert.equal(order.data.data.invoice.name, 'María Pérez');
+  assert.equal(order.data.data.invoice.idNumber, 'V-12345678');
 });

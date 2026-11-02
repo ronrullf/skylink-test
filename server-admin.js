@@ -19,7 +19,8 @@ const server = http.createServer((req, res) => {
   const sharedFiles = {
     '/': 'admin.html', '/index.html': 'admin.html', '/admin': 'admin.html',
     '/autopago': 'autopago.html', '/kiosco': 'autopago.html',
-    '/chat': 'chat.html', '/pay-ui.css': 'pay-ui.css', '/zxing.min.js': 'zxing.min.js'
+    '/chat': 'chat.html', '/factura': 'factura.html', '/factura.html': 'factura.html',
+    '/pay-ui.css': 'pay-ui.css', '/zxing.min.js': 'zxing.min.js'
   };
   let filePath = sharedFiles[pathname]
     ? path.join(__dirname, 'public', sharedFiles[pathname])

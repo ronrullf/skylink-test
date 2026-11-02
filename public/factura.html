@@ -189,14 +189,14 @@
   <div class="invoice-wrapper">
 
     <!-- FACTURA DIGITAL -->
-    <div class="invoice-card" id="invoiceCard">
+    <div class="invoice-card" id="invoiceCard" style="display:none;">
       <div class="invoice-badge-ok">
         ✓ PAGO CONFIRMADO VÍA SKYLINK PAY (VALINK GROUP)
       </div>
 
       <div class="invoice-header">
         <div>
-          <h2>MI TIENDA C.A.</h2>
+          <h2 id="invoiceStoreName">MI TIENDA C.A.</h2>
           <p>RIF: J-50733628-0 · Caracas, Venezuela</p>
           <p id="invoiceDate">Fecha: --/--/---- --:--</p>
         </div>
@@ -319,8 +319,13 @@
 
         currentOrder = json.data;
 
+        if (currentOrder.status !== 'paid') throw new Error('El pago todavía no ha sido confirmado por Skylink Pay.');
+
+        document.getElementById('invoiceCard').style.display = 'block';
+        document.getElementById('invoiceStoreName').textContent = currentOrder.storeName || 'MI TIENDA C.A.';
         document.getElementById('invoiceOrderId').textContent = currentOrder.orderId || orderId;
-        document.getElementById('invoiceDate').textContent = 'Fecha: ' + new Date().toLocaleString('es-VE');
+        const invoiceDate = currentOrder.paidAt || currentOrder.createdAt;
+        document.getElementById('invoiceDate').textContent = 'Fecha: ' + new Date(invoiceDate).toLocaleString('es-VE');
 
         const usd = Number(currentOrder.amount || 0);
         const rate = Number(currentOrder.bcvRate || 37.50);
@@ -331,13 +336,13 @@
         document.getElementById('invoiceTotalUsd').textContent = `$${usd.toFixed(2)} USD`;
         document.getElementById('invoiceTotalVes').textContent = `Bs. ${ves.toFixed(2)}`;
 
-        document.getElementById('bankRefVal').textContent = currentOrder.reference || 'SK-' + Math.floor(10000000 + Math.random() * 90000000);
-        document.getElementById('bankMethodVal').textContent = 'Pago Móvil C2P';
-        document.getElementById('bankPayerVal').textContent = currentOrder.clientName || 'Cliente';
+        document.getElementById('bankRefVal').textContent = currentOrder.reference || 'Confirmada por Skylink Pay';
+        document.getElementById('bankMethodVal').textContent = currentOrder.paymentMethod || 'Skylink Pay';
+        document.getElementById('bankPayerVal').textContent = `${currentOrder.clientName || 'Cliente'} · ${currentOrder.clientId || ''}`;
 
         document.getElementById('shipRecipient').value = currentOrder.clientName || '';
         document.getElementById('shipPhone').value = currentOrder.clientPhone || '';
-        document.getElementById('shipId').value = 'V-12345678';
+        document.getElementById('shipId').value = currentOrder.clientId || '';
         document.getElementById('displayGuideNumber').textContent = internalGuide;
 
         if (currentOrder.storePhone) {
