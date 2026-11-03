@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Kiosco Autopago · SkyPay (Skylink Pay)</title>
   <link rel="stylesheet" href="/pay-ui.css">
   <style>
@@ -141,7 +141,7 @@
     }
   </style>
 </head>
-<body>
+<body class="kiosk-body">
 
   <!-- Barra Superior Kiosco -->
   <header class="kiosk-header">
@@ -163,7 +163,7 @@
     </div>
   </header>
 
-  <section class="page-heading">
+  <section class="page-heading kiosk-heading">
     <div>
       <p class="eyebrow">AUTOPAGO EN TIENDA</p>
       <h1>Selecciona o escanea tus productos</h1>
@@ -172,7 +172,7 @@
     <span class="service-badge">Pasarela Oficial Skylink Pay</span>
   </section>
 
-  <div class="container">
+  <div class="container kiosk-container">
     <main>
       <!-- Escáner de Productos -->
       <div class="scanner-card-box">
@@ -226,7 +226,7 @@
       </div>
     </main>
 
-    <!-- Barra Lateral del Carrito -->
+    <!-- Barra Lateral del Carrito (En iPad: siempre encajada en altura, con botón de pago fijo) -->
     <aside class="cart-box">
       <h2>
         <span>Mi Carrito</span>
@@ -239,25 +239,28 @@
         </div>
       </div>
 
-      <div class="cart-total-box">
-        <div class="cart-total-row">
-          <span style="font-size:12px; color:#64748b; font-weight:600;">Referencia USD (Tasa BCV):</span>
-          <span class="cart-total-usd" id="cartTotalUSD">$0.00</span>
+      <!-- Acciones y botón de pago anclados al fondo del panel sin scroll -->
+      <div class="cart-footer-actions">
+        <div class="cart-total-box">
+          <div class="cart-total-row">
+            <span style="font-size:12px; color:#64748b; font-weight:600;">Referencia USD (Tasa BCV):</span>
+            <span class="cart-total-usd" id="cartTotalUSD">$0.00</span>
+          </div>
+          <div class="cart-total-row">
+            <span style="font-size:13px; color:#0f172a; font-weight:700;">TOTAL A PAGAR:</span>
+            <span class="cart-total-bs" id="cartTotalBS">Bs. 0.00</span>
+          </div>
         </div>
-        <div class="cart-total-row">
-          <span style="font-size:13px; color:#0f172a; font-weight:700;">TOTAL A PAGAR:</span>
-          <span class="cart-total-bs" id="cartTotalBS">Bs. 0.00</span>
-        </div>
+
+        <p id="paymentError" class="inline-message" role="alert" hidden></p>
+        
+        <button class="btn-pay" id="btnPay" disabled onclick="iniciarCobro()">
+          Comprar
+          <span>Continuar a datos de facturación</span>
+        </button>
+
+        <button class="btn-clear" onclick="limpiarCarrito()">Vaciar carrito</button>
       </div>
-
-      <p id="paymentError" class="inline-message" role="alert" hidden></p>
-      
-      <button class="btn-pay" id="btnPay" disabled onclick="iniciarCobro()">
-        Comprar
-        <span>Continuar a datos de facturación</span>
-      </button>
-
-      <button class="btn-clear" onclick="limpiarCarrito()">Vaciar carrito</button>
     </aside>
   </div>
 
@@ -300,7 +303,11 @@
     }
 
     function actualizarEstadoPago() {
-      document.getElementById('btnPay').disabled = creating || carrito.length === 0;
+      const disabled = creating || carrito.length === 0;
+      const btnPay = document.getElementById('btnPay');
+      if (btnPay) btnPay.disabled = disabled;
+      const btnSticky = document.getElementById('btnStickyPay');
+      if (btnSticky) btnSticky.disabled = disabled;
     }
 
     function playBeep(freq = 800, dur = 0.1) {
@@ -430,14 +437,21 @@
       const totalBsEl = document.getElementById('cartTotalBS');
       const countEl = document.getElementById('cartItemCount');
 
+      const stickyCount = document.getElementById('stickyCount');
+      const stickyTotalBs = document.getElementById('stickyTotalBs');
+      const stickyTotalUsd = document.getElementById('stickyTotalUsd');
+
       const totalItems = carrito.reduce((sum, item) => sum + item.qty, 0);
       countEl.textContent = `${totalItems} ${totalItems === 1 ? 'artículo' : 'artículos'}`;
+      if (stickyCount) stickyCount.textContent = `${totalItems} ${totalItems === 1 ? 'artículo' : 'artículos'}`;
 
       if (carrito.length === 0) {
         container.innerHTML = '<div style="color: #94a3b8; font-size: 13px; text-align: center; margin-top: 40px;">🛒 Toca cualquier producto para añadirlo al carrito</div>';
         totalUsdEl.textContent = '$0.00';
         totalBsEl.textContent = 'Bs. 0.00';
-        btnPay.disabled = true;
+        if (stickyTotalBs) stickyTotalBs.textContent = 'Bs. 0.00';
+        if (stickyTotalUsd) stickyTotalUsd.textContent = '$0.00';
+        actualizarEstadoPago();
         return;
       }
 
@@ -471,6 +485,8 @@
       const totalUsd = (totalBs / bcvRate).toFixed(2);
       totalBsEl.textContent = `Bs. ${totalBs.toFixed(2)}`;
       totalUsdEl.textContent = `$${totalUsd}`;
+      if (stickyTotalBs) stickyTotalBs.textContent = `Bs. ${totalBs.toFixed(2)}`;
+      if (stickyTotalUsd) stickyTotalUsd.textContent = `≈ $${totalUsd} USD`;
       actualizarEstadoPago();
     }
 
@@ -577,6 +593,30 @@
     document.getElementById('barcodeInput').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') procesarCodigoManual();
     });
+
+    // Optimización al girar/voltear el iPad (Landscape <-> Portrait)
+    function handleOrientationChange() {
+      if (mediaStream) {
+        const video = document.getElementById('cameraVideo');
+        if (video) video.play().catch(() => {});
+      }
+    }
+    window.addEventListener('resize', handleOrientationChange);
+    window.addEventListener('orientationchange', handleOrientationChange);
   </script>
+
+  <!-- Barra fija de pago para Split View / móviles (< 740px): botón de pagar 100% visible sin scroll -->
+  <div class="kiosk-sticky-paybar" id="kioskStickyPaybar">
+    <div class="sticky-paybar-info">
+      <span class="sticky-paybar-count" id="stickyCount">0 artículos</span>
+      <div class="sticky-paybar-totals">
+        <span class="sticky-paybar-bs" id="stickyTotalBs">Bs. 0.00</span>
+        <span class="sticky-paybar-usd" id="stickyTotalUsd">$0.00</span>
+      </div>
+    </div>
+    <button class="btn-sticky-pay" id="btnStickyPay" disabled onclick="iniciarCobro()">
+      Comprar ➔
+    </button>
+  </div>
 </body>
 </html>
