@@ -486,6 +486,15 @@ test('strict payment verification and iPad auto-zoom: invoice blocked unless pai
   assert.match(autopagoHtml, /scanner-zoom-controls/);
   assert.match(autopagoHtml, /btnZoom1/);
   assert.match(autopagoHtml, /btnZoom2/);
+
+  // 6. Android and low-resolution camera optimizations
+  assert.match(autopagoHtml, /solicitarStreamCamaraRobusto/);
+  assert.match(autopagoHtml, /realzarContrasteBajaResolucion/);
+  assert.match(autopagoHtml, /initTapToFocus/);
+  assert.match(autopagoHtml, /mostrarReticleEnfoque/);
+  assert.match(autopagoHtml, /tap-focus-reticle/);
+  // Ensure no hard minimum constraints that cause OverconstrainedError on Android portrait mode
+  assert.doesNotMatch(autopagoHtml, /video:\s*\{[^}]*width:\s*\{\s*min:\s*640/);
 });
 
 test('DolarAPI integration, product prices 18, 19, 20, 24 Bs and random default product pricing', async t => {
