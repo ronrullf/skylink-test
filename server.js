@@ -61,6 +61,7 @@ function handleStatic(req, res) {
       if (ext === '.png') contentType = 'image/png';
       if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
       if (ext === '.svg') contentType = 'image/svg+xml';
+      if (ext === '.wasm') contentType = 'application/wasm';
       res.writeHead(200, { 'Content-Type': contentType });
       res.end(content);
     }

@@ -195,3 +195,42 @@ test('kiosk defers Skylink until the separate invoice-data step', () => {
   assert.match(invoiceDataPage, /fetch\('\/api\/create-payment'/);
   assert.match(invoiceDataPage, /window\.location\.href = `\/factura\?order_id=/);
 });
+
+test('autopago integrates continuous barcode-detector with local ZXing-WASM without external CDN', () => {
+  const autopagoHtml = fs.readFileSync(require.resolve('../public/autopago.html'), 'utf8');
+  const wasmPath = require.resolve('../public/zxing_reader.wasm');
+  const iifePath = require.resolve('../public/barcode-detector.iife.js');
+
+  // 1. Assets exist locally
+  assert.ok(fs.existsSync(wasmPath), 'zxing_reader.wasm must exist in public/');
+  assert.ok(fs.existsSync(iifePath), 'barcode-detector.iife.js must exist in public/');
+
+  // 2. Validate WASM binary magic header (\0asm)
+  const wasmBytes = fs.readFileSync(wasmPath);
+  assert.ok(wasmBytes.length > 500000, 'zxing_reader.wasm should be a full binary (~900KB+)');
+  assert.equal(wasmBytes[0], 0x00);
+  assert.equal(wasmBytes[1], 0x61); // 'a'
+  assert.equal(wasmBytes[2], 0x73); // 's'
+  assert.equal(wasmBytes[3], 0x6d); // 'm'
+
+  // 3. Preload and script tag in HTML head
+  assert.match(autopagoHtml, /rel="preload"\s+href="\/zxing_reader\.wasm"/);
+  assert.match(autopagoHtml, /src="\/barcode-detector\.iife\.js"/);
+
+  // 4. Barcode configuration exists and covers retail formats
+  assert.match(autopagoHtml, /SCANNER_CONFIG/);
+  assert.match(autopagoHtml, /ean_13/);
+  assert.match(autopagoHtml, /upc_a/);
+  assert.match(autopagoHtml, /code_128/);
+  assert.match(autopagoHtml, /qr_code/);
+  assert.match(autopagoHtml, /cooldownMs:\s*1200/);
+
+  // 5. Local WASM override configured (no CDN requests)
+  assert.match(autopagoHtml, /setZXingModuleOverrides/);
+  assert.match(autopagoHtml, /locateFile/);
+
+  // 6. Camera starts automatically and stays continuous
+  assert.match(autopagoHtml, /iniciarCamaraContinuo\(\)/);
+  assert.match(autopagoHtml, /wakeLock/);
+  assert.match(autopagoHtml, /visibilitychange/);
+});

@@ -21,7 +21,8 @@ const server = http.createServer((req, res) => {
     '/autopago': 'autopago.html', '/kiosco': 'autopago.html',
     '/datos-factura': 'datos-factura.html',
     '/chat': 'chat.html', '/factura': 'factura.html', '/factura.html': 'factura.html',
-    '/pay-ui.css': 'pay-ui.css', '/zxing.min.js': 'zxing.min.js'
+    '/pay-ui.css': 'pay-ui.css', '/zxing.min.js': 'zxing.min.js',
+    '/barcode-detector.iife.js': 'barcode-detector.iife.js', '/zxing_reader.wasm': 'zxing_reader.wasm'
   };
   let filePath = sharedFiles[pathname]
     ? path.join(__dirname, 'public', sharedFiles[pathname])
@@ -40,10 +41,14 @@ const server = http.createServer((req, res) => {
       if (ext === '.png') contentType = 'image/png';
       if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
       if (ext === '.svg') contentType = 'image/svg+xml';
+      if (ext === '.wasm') contentType = 'application/wasm';
       res.writeHead(200, { 'Content-Type': contentType });
       res.end(content);
     }
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => console.log(`Panel Skylink: http://localhost:${PORT}`));
+if (require.main === module) {
+  server.listen(PORT, '0.0.0.0', () => console.log(`Panel Skylink: http://localhost:${PORT}`));
+}
+module.exports = server;

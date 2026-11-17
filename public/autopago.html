@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Kiosco Autopago · SkyPay (Skylink Pay)</title>
+  <!-- Precarga local de WebAssembly de ZXing para escáner ultra-rápido sin CDNs externos -->
+  <link rel="preload" href="/zxing_reader.wasm" as="fetch" type="application/wasm" crossorigin>
+  <script src="/barcode-detector.iife.js"></script>
   <link rel="stylesheet" href="/pay-ui.css">
   <style>
     /* Estilos mejorados para Kiosco Autopago */
@@ -139,6 +142,132 @@
       align-items: center;
       gap: 4px;
     }
+
+    /* Estilos del Lector Continuo BarcodeDetector */
+    .scanner-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-torch {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+    }
+    .btn-torch.active {
+      background: #f59e0b;
+      color: #0f172a;
+      border-color: #d97706;
+      font-weight: 700;
+    }
+    .camera-viewport-container {
+      position: relative;
+      height: 200px;
+      overflow: hidden;
+      background: #020617;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      box-shadow: inset 0 0 16px rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #cameraVideo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .scanner-guide-overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+    }
+    .scanner-aim-frame {
+      position: relative;
+      width: 80%;
+      height: 52%;
+      border: 2px dashed rgba(255, 255, 255, 0.65);
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+      border-radius: 12px;
+      transition: all 0.18s ease-out;
+    }
+    .scanner-aim-frame.scan-success {
+      border: 2.5px solid #10b981;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.2), 0 0 24px #10b981;
+      transform: scale(1.02);
+    }
+    .scanner-corner {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-color: #38bdf8;
+      border-style: solid;
+      pointer-events: none;
+    }
+    .corner-tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-top-left-radius: 6px; }
+    .corner-tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-top-right-radius: 6px; }
+    .corner-bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; border-bottom-left-radius: 6px; }
+    .corner-br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-bottom-right-radius: 6px; }
+    .scanner-laser {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #38bdf8, #10b981, #38bdf8, transparent);
+      box-shadow: 0 0 8px #38bdf8;
+      animation: laserScan 2s infinite ease-in-out;
+    }
+    @keyframes laserScan {
+      0% { top: 6%; opacity: 0.3; }
+      50% { top: 92%; opacity: 1; }
+      100% { top: 6%; opacity: 0.3; }
+    }
+    .scanner-toast {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.92);
+      color: #f8fafc;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      backdrop-filter: blur(4px);
+      border: 1px solid #10b981;
+      z-index: 10;
+      pointer-events: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      white-space: nowrap;
+    }
+    .scanner-quick-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      align-items: center;
+    }
+    .chips-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+    }
+    .chip-pill {
+      padding: 4px 10px;
+      font-size: 11px;
+      margin: 0;
+    }
   </style>
 </head>
 <body class="kiosk-body">
@@ -174,39 +303,50 @@
 
   <div class="container kiosk-container">
     <main>
-      <!-- Escáner de Productos -->
+      <!-- Escáner de Productos (Siempre Abierto con BarcodeDetector) -->
       <div class="scanner-card-box">
         <div class="scanner-header-bar">
           <div class="scanner-title-group">
-            <span class="scanner-main-title">📷 Escáner de Código de Barras</span>
-            <span class="scanner-live-badge" id="cameraLiveBadge">Cámara apagada</span>
+            <span class="scanner-main-title">📷 Escáner de Código de Barras & QR</span>
+            <span class="scanner-live-badge active" id="cameraLiveBadge">Iniciando escáner continuo...</span>
           </div>
-          <button type="button" class="btn-toggle-camera" id="btnToggleCamera" onclick="toggleCamara()">
-            Abrir cámara
-          </button>
+          <div class="scanner-actions">
+            <button type="button" class="btn-torch" id="btnTorch" style="display:none;" title="Encender/apagar linterna" onclick="toggleTorch()">
+              🔦 Linterna
+            </button>
+            <button type="button" class="btn-toggle-camera" id="btnToggleCamera" onclick="toggleCamaraManual()">
+              Pausar cámara
+            </button>
+          </div>
         </div>
 
-        <div class="camera-viewport-container" id="cameraViewport" style="display:none;">
+        <div class="camera-viewport-container" id="cameraViewport">
           <video id="cameraVideo" autoplay playsinline muted></video>
           <div class="scanner-guide-overlay">
-            <div class="scanner-aim-frame">
+            <div class="scanner-aim-frame" id="scannerAimFrame">
+              <div class="scanner-corner corner-tl"></div>
+              <div class="scanner-corner corner-tr"></div>
+              <div class="scanner-corner corner-bl"></div>
+              <div class="scanner-corner corner-br"></div>
               <div class="scanner-laser"></div>
             </div>
           </div>
+          <div class="scanner-toast" id="scannerToast" style="display:none;"></div>
         </div>
 
         <div class="scanner-banner">
-          <input type="text" id="barcodeInput" aria-label="Código de barras" placeholder="Escribe o escanea el código (ej: 7591001)...">
+          <input type="text" id="barcodeInput" aria-label="Código de barras" placeholder="Escribe o escanea con pistola/cámara (ej: 7591001)...">
           <button type="button" class="btn-add-code" onclick="procesarCodigoManual()">Añadir al Carrito</button>
         </div>
 
         <!-- Chips de prueba rápida -->
-        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; align-items:center;">
-          <span style="font-size:11px; font-weight:700; color:#64748b;">Prueba rápida:</span>
-          <button type="button" class="category-pill" style="padding:4px 10px; font-size:11px;" onclick="simularEscaneo('7591001')">🌽 Harina PAN (25 Bs)</button>
-          <button type="button" class="category-pill" style="padding:4px 10px; font-size:11px;" onclick="simularEscaneo('7591473005492')">🍚 Arroz 1kg (23.50 Bs)</button>
-          <button type="button" class="category-pill" style="padding:4px 10px; font-size:11px;" onclick="simularEscaneo('7591002')">☕ Café 100g (24.50 Bs)</button>
-          <button type="button" class="category-pill" style="padding:4px 10px; font-size:11px;" onclick="simularEscaneo('7591003')">🍝 Pasta 500g (21 Bs)</button>
+        <div class="scanner-quick-chips">
+          <span class="chips-label">Prueba rápida:</span>
+          <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591001')">🌽 Harina PAN (25 Bs)</button>
+          <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591473005492')">🍚 Arroz 1kg (23.50 Bs)</button>
+          <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591002')">☕ Café 100g (24.50 Bs)</button>
+          <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591003')">🍝 Pasta 500g (21 Bs)</button>
+          <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591006')">🍳 Aceite 500ml (25 Bs)</button>
         </div>
       </div>
 
@@ -288,13 +428,53 @@
       { id: 14, name: "Caraotas Negras 500g", code: "7591014", priceBs: 22.00, category: "Víveres", icon: "🫘" }
     ];
 
+    // ========================================================
+    // CONFIGURACIÓN OFICIAL DEL ESCÁNER BARCODE DETECTOR
+    // ========================================================
+    const SCANNER_CONFIG = {
+      // Formatos estándar requeridos para retail / autopago (EAN, UPC, Code 128, QR)
+      formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code'],
+      cooldownMs: 1200,            // Antiduplicado: tiempo para ignorar el MISMO código
+      minIntervalMs: 50,           // Límite ~20 lecturas/seg (50ms por frame)
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30 }
+      },
+      cropArea: {                  // Franja central para máxima velocidad en WASM / nativo
+        widthRatio: 0.82,
+        heightRatio: 0.52
+      },
+      wasmUrl: '/zxing_reader.wasm'
+    };
+
+    // Configurar overrides para cargar SIEMPRE el WASM local sin llamar a CDNs externos
+    if (window.BarcodeDetectionAPI) {
+      try {
+        window.BarcodeDetectionAPI.setZXingModuleOverrides({
+          locateFile: (path, prefix) => path.endsWith('.wasm') ? SCANNER_CONFIG.wasmUrl : prefix + path
+        });
+        window.BarcodeDetectionAPI.prepareZXingModule({
+          overrides: {
+            locateFile: (path, prefix) => path.endsWith('.wasm') ? SCANNER_CONFIG.wasmUrl : prefix + path
+          },
+          fireImmediately: true
+        }).then(() => {
+          console.log('[AutoPago] Módulo ZXing-WASM local precargado con éxito');
+        }).catch(err => {
+          console.warn('[AutoPago] Precarga WASM (continuando):', err);
+        });
+      } catch (err) {
+        console.warn('[AutoPago] Error al inicializar WASM overrides:', err);
+      }
+    }
+
     let bcvRate = 37.50;
     let carrito = [];
     let mediaStream = null;
     let creating = false;
     let categoriaSeleccionada = 'Todos';
-    let lastScanCode = '';
-    let lastScanAt = 0;
 
     function showError(message) {
       const box = document.getElementById("paymentError");
@@ -310,19 +490,68 @@
       if (btnSticky) btnSticky.disabled = disabled;
     }
 
-    function playBeep(freq = 800, dur = 0.1) {
+    // AudioContext de baja latencia precargado
+    let audioCtx = null;
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) audioCtx = new AudioContextClass();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+      return audioCtx;
+    }
+
+    function playBeep(freq = 1046, dur = 0.08) {
       try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const ctx = getAudioContext();
+        if (!ctx) return;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
+        osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, ctx.currentTime);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+        gain.gain.setValueAtTime(0.14, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
         osc.start();
         osc.stop(ctx.currentTime + dur);
       } catch (e) {}
+    }
+
+    // Desbloquear AudioContext en el primer gesto del usuario
+    ['click', 'touchstart', 'keydown'].forEach(evt => {
+      window.addEventListener(evt, () => {
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {});
+        }
+      }, { once: true, passive: true });
+    });
+
+    // Screen Wake Lock API (para que la tablet permanezca encendida en el mostrador)
+    let wakeLock = null;
+    async function requestWakeLock() {
+      if ('wakeLock' in navigator && typeof navigator.wakeLock.request === 'function') {
+        try {
+          if (!wakeLock) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            wakeLock.addEventListener('release', () => {
+              wakeLock = null;
+            });
+            console.log('[AutoPago] Screen Wake Lock activo');
+          }
+        } catch (e) {
+          console.warn('[AutoPago] Wake Lock no disponible:', e.message);
+        }
+      }
+    }
+
+    function releaseWakeLock() {
+      if (wakeLock) {
+        try { wakeLock.release(); } catch (e) {}
+        wakeLock = null;
+      }
     }
 
     async function cargarCatalogoYRate() {
@@ -490,78 +719,355 @@
       actualizarEstadoPago();
     }
 
-    function simularEscaneo(codigo, fromCamera = false) {
-      if (fromCamera) {
-        const now = Date.now();
-        if (codigo === lastScanCode && now - lastScanAt < 1200) return;
-        lastScanCode = codigo;
-        lastScanAt = now;
+    // ========================================================
+    // DETECCIÓN CONTINUA CON BARCODE DETECTOR & ZXING-WASM
+    // ========================================================
+    let detectorInstance = null;
+    function getDetector() {
+      if (!detectorInstance) {
+        // Usa BarcodeDetector nativo (Chrome Android) o WASM ponyfill (Safari iPad)
+        const DetectorClass = window.BarcodeDetector || (window.BarcodeDetectionAPI && window.BarcodeDetectionAPI.BarcodeDetector);
+        if (!DetectorClass) {
+          console.warn('[AutoPago] BarcodeDetector no disponible');
+          return null;
+        }
+        detectorInstance = new DetectorClass({ formats: SCANNER_CONFIG.formats });
+        console.log('[AutoPago] BarcodeDetector inicializado con éxito');
       }
-      const prod = PRODUCTOS.find(p => p.code === codigo);
+      return detectorInstance;
+    }
+
+    // Canvas recortado offscreen reutilizable (4x-8x más rápido que decodificar el video entero)
+    let scanCanvas = null;
+    let scanCtx = null;
+    function getScanCanvas(w, h) {
+      if (!scanCanvas) {
+        scanCanvas = document.createElement('canvas');
+        scanCanvas.width = w;
+        scanCanvas.height = h;
+        scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+      } else if (scanCanvas.width !== w || scanCanvas.height !== h) {
+        scanCanvas.width = w;
+        scanCanvas.height = h;
+      }
+      return { canvas: scanCanvas, ctx: scanCtx };
+    }
+
+    // Feedback visual y háptico de lectura inmediata
+    function feedbackLectura(prod) {
+      playBeep(1046, 0.08); // Nota C6 limpia
+      if ('vibrate' in navigator) {
+        try { navigator.vibrate(35); } catch (e) {}
+      }
+      const aim = document.getElementById('scannerAimFrame');
+      if (aim) {
+        aim.classList.add('scan-success');
+        setTimeout(() => aim.classList.remove('scan-success'), 380);
+      }
+      showScannerToast(`✓ ${prod.name} (Bs. ${Number(prod.priceBs).toFixed(2)})`);
+    }
+
+    let toastTimer = null;
+    function showScannerToast(msg) {
+      const toast = document.getElementById('scannerToast');
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.style.display = 'none';
+      }, 1600);
+    }
+
+    // Normalización de códigos de barras (EAN-13, UPC, Code 128, QR)
+    function normalizarCodigo(raw) {
+      if (!raw) return '';
+      let str = String(raw).trim();
+      if (str.includes('code=')) {
+        const m = str.match(/code=([^&]+)/);
+        if (m) str = decodeURIComponent(m[1]);
+      }
+      if (str.startsWith('{') && str.endsWith('}')) {
+        try {
+          const obj = JSON.parse(str);
+          if (obj.code) str = String(obj.code);
+        } catch (e) {}
+      }
+      return str;
+    }
+
+    function buscarProductoPorCodigo(rawCode) {
+      const norm = normalizarCodigo(rawCode);
+      return PRODUCTOS.find(p => {
+        if (String(p.code) === norm) return true;
+        if (String(p.code).replace(/^0+/, '') === norm.replace(/^0+/, '')) return true;
+        return false;
+      });
+    }
+
+    // Antiduplicado y procesamiento de lectura
+    let lastScannedCode = '';
+    let lastScannedTime = 0;
+
+    function procesarLectura(codigoRaw, fromCamera = false, elapsedMs = null) {
+      const codigo = normalizarCodigo(codigoRaw);
+      if (!codigo) return;
+
+      const now = performance.now();
+      // Ignorar duplicados del MISMO código dentro de la ventana de cooldown (~1200ms)
+      if (codigo === lastScannedCode && (now - lastScannedTime) < SCANNER_CONFIG.cooldownMs) {
+        return;
+      }
+      lastScannedCode = codigo;
+      lastScannedTime = now;
+
+      const tStart = performance.now();
+      const prod = buscarProductoPorCodigo(codigo);
       if (prod) {
+        feedbackLectura(prod);
+        // REQUISITO CRÍTICO: El escáner NO se cierra, NO abre modal ni recarga
         agregarProducto(prod);
+        const pipelineTime = (performance.now() - tStart).toFixed(1);
+        console.log(`[AutoPago Scanner] ✓ Agregado: ${prod.name} (${codigo}) | Detección: ${elapsedMs || 'directo'}ms | Pipeline UI: ${pipelineTime}ms`);
       } else {
-        showError("Código de barras no encontrado: " + codigo);
+        playBeep(440, 0.12);
+        showError("Código no registrado en catálogo: " + codigo);
+        showScannerToast("⚠️ No encontrado: " + codigo);
       }
+    }
+
+    function simularEscaneo(codigo) {
+      procesarLectura(codigo, false);
     }
 
     function procesarCodigoManual() {
       const input = document.getElementById('barcodeInput');
       const code = input.value.trim();
       if (!code) return;
-      simularEscaneo(code);
+      procesarLectura(code, false);
       input.value = '';
     }
 
-    async function toggleCamara() {
+    // Bucle de Detección Continua de Alto Rendimiento
+    let isDetecting = false;
+    let detectionLoopActive = false;
+    let lastDetectTimestamp = 0;
+
+    function startDetectionLoop() {
+      const video = document.getElementById('cameraVideo');
+      if (!video) return;
+      detectionLoopActive = true;
+
+      const onFrame = async (nowTimestamp = performance.now()) => {
+        if (!detectionLoopActive || !mediaStream || !mediaStream.active) {
+          return;
+        }
+
+        // Limitar a ~20 detecciones por segundo (50ms por frame)
+        if (nowTimestamp - lastDetectTimestamp >= SCANNER_CONFIG.minIntervalMs) {
+          if (!isDetecting && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+            isDetecting = true;
+            lastDetectTimestamp = nowTimestamp;
+            try {
+              await scanSingleFrame(video);
+            } catch (e) {
+              console.debug('[AutoPago] Error en frame de escaneo (continuando bucle):', e);
+            } finally {
+              isDetecting = false;
+            }
+          }
+        }
+
+        if ('requestVideoFrameCallback' in video) {
+          video.requestVideoFrameCallback(onFrame);
+        } else {
+          requestAnimationFrame(onFrame);
+        }
+      };
+
+      if ('requestVideoFrameCallback' in video) {
+        video.requestVideoFrameCallback(onFrame);
+      } else {
+        requestAnimationFrame(onFrame);
+      }
+    }
+
+    async function scanSingleFrame(video) {
+      const detector = getDetector();
+      if (!detector) return;
+
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (!vw || !vh) return;
+
+      // Recorte centrado (Crop Area): acelera el procesamiento WASM y descarta bordes
+      const cropW = Math.max(160, Math.round(vw * SCANNER_CONFIG.cropArea.widthRatio));
+      const cropH = Math.max(100, Math.round(vh * SCANNER_CONFIG.cropArea.heightRatio));
+      const cropX = Math.round((vw - cropW) / 2);
+      const cropY = Math.round((vh - cropH) / 2);
+
+      const { canvas, ctx } = getScanCanvas(cropW, cropH);
+      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+      const tStart = performance.now();
+      const barcodes = await detector.detect(canvas);
+      if (barcodes && barcodes.length > 0) {
+        const elapsed = (performance.now() - tStart).toFixed(1);
+        const first = barcodes[0];
+        console.log(`[AutoPago Scanner] '${first.rawValue}' detectado [${first.format}] en ${elapsed}ms`);
+        procesarLectura(first.rawValue, true, elapsed);
+      }
+    }
+
+    // Hardware: Enfoque continuo y linterna
+    let currentTrack = null;
+    let torchOn = false;
+
+    async function aplicarEnfoqueContinuo(track) {
+      if (!track || typeof track.applyConstraints !== 'function') return;
+      try {
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        if (caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+          console.log('[AutoPago] Enfoque continuo de hardware activado');
+        }
+      } catch (e) {
+        console.debug('[AutoPago] Enfoque continuo no soportado:', e);
+      }
+    }
+
+    function setupTorch(track) {
+      currentTrack = track;
+      const btnTorch = document.getElementById('btnTorch');
+      if (!btnTorch) return;
+      try {
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        if (caps.torch) {
+          btnTorch.style.display = 'inline-flex';
+        } else {
+          btnTorch.style.display = 'none';
+        }
+      } catch (e) {
+        btnTorch.style.display = 'none';
+      }
+    }
+
+    async function toggleTorch() {
+      if (!currentTrack) return;
+      try {
+        torchOn = !torchOn;
+        await currentTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
+        const btnTorch = document.getElementById('btnTorch');
+        if (btnTorch) {
+          btnTorch.classList.toggle('active', torchOn);
+          btnTorch.textContent = torchOn ? '🔦 Linterna ON' : '🔦 Linterna';
+        }
+      } catch (e) {
+        console.warn('[AutoPago] Error toggling linterna:', e);
+      }
+    }
+
+    // Ciclo de Vida: Escáner SIEMPRE abierto con auto-recuperación
+    async function iniciarCamaraContinuo() {
       const video = document.getElementById('cameraVideo');
       const viewport = document.getElementById('cameraViewport');
-      const btn = document.getElementById('btnToggleCamera');
       const badge = document.getElementById('cameraLiveBadge');
+      const btnToggle = document.getElementById('btnToggleCamera');
 
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(t => t.stop());
-        mediaStream = null;
-        viewport.style.display = 'none';
-        btn.innerText = "Abrir cámara";
-        badge.innerText = "Cámara apagada";
-        badge.className = "scanner-live-badge";
+      if (mediaStream && mediaStream.active) {
+        if (!detectionLoopActive) startDetectionLoop();
         return;
       }
 
+      badge.textContent = "● Conectando cámara...";
+      badge.className = "scanner-live-badge";
+
       try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: SCANNER_CONFIG.video,
+          audio: false
+        });
+
         video.srcObject = mediaStream;
         await video.play();
-        viewport.style.display = 'flex';
-        btn.innerText = "Cerrar cámara";
-        badge.innerText = "Cámara activa";
-        badge.className = "scanner-live-badge active";
 
-        if ('BarcodeDetector' in window) {
-          const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'qr_code'] });
-          let lastDetectionAt = 0;
-          const scan = async (timestamp = 0) => {
-            if (!mediaStream) return;
-            if (timestamp - lastDetectionAt < 120) {
-              requestAnimationFrame(scan);
-              return;
-            }
-            lastDetectionAt = timestamp;
-            try {
-              const barcodes = await detector.detect(video);
-              if (barcodes.length > 0) {
-                simularEscaneo(barcodes[0].rawValue, true);
-              }
-            } catch (e) {}
-            requestAnimationFrame(scan);
+        viewport.style.display = 'flex';
+        badge.textContent = "● Escáner activo (Continuo)";
+        badge.className = "scanner-live-badge active";
+        if (btnToggle) btnToggle.textContent = "Pausar cámara";
+
+        const [track] = mediaStream.getVideoTracks();
+        if (track) {
+          currentTrack = track;
+          await aplicarEnfoqueContinuo(track);
+          setupTorch(track);
+
+          // Auto-recuperación si el stream finaliza inesperadamente
+          track.onended = () => {
+            console.warn('[AutoPago] Stream finalizado. Auto-reconectando...');
+            badge.textContent = "Reconectando cámara...";
+            badge.className = "scanner-live-badge";
+            mediaStream = null;
+            setTimeout(iniciarCamaraContinuo, 1000);
           };
-          scan();
         }
-      } catch (e) {
-        showError("No se pudo acceder a la cámara. Puedes ingresar el código manualmente.");
+
+        await requestWakeLock();
+        startDetectionLoop();
+      } catch (err) {
+        console.error('[AutoPago] Error al acceder a cámara:', err);
+        badge.textContent = "Cámara no disponible";
+        badge.className = "scanner-live-badge";
+        if (btnToggle) btnToggle.textContent = "Reintentar cámara";
+        showError("Permiso de cámara denegado o no disponible. Puedes usar el buscador o pistola USB.");
       }
     }
+
+    function pausarCamara() {
+      detectionLoopActive = false;
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+      }
+      releaseWakeLock();
+      const badge = document.getElementById('cameraLiveBadge');
+      const btnToggle = document.getElementById('btnToggleCamera');
+      if (badge) {
+        badge.textContent = "Cámara en pausa";
+        badge.className = "scanner-live-badge";
+      }
+      if (btnToggle) btnToggle.textContent = "Reanudar cámara";
+    }
+
+    function toggleCamaraManual() {
+      if (mediaStream && mediaStream.active) {
+        pausarCamara();
+      } else {
+        iniciarCamaraContinuo();
+      }
+    }
+
+    // Auto-recuperación al cambiar de pestaña / minimizar y regresar
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible') {
+        await requestWakeLock();
+        if (!mediaStream || !mediaStream.active || mediaStream.getVideoTracks().some(t => t.readyState === 'ended')) {
+          iniciarCamaraContinuo();
+        } else if (!detectionLoopActive) {
+          startDetectionLoop();
+        }
+      }
+    });
+
+    // Liberar cámara y wake lock limpiamente al salir de la página
+    window.addEventListener('pagehide', () => {
+      detectionLoopActive = false;
+      releaseWakeLock();
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+      }
+    });
 
     // Paso 1: guardar la selección localmente y solicitar los datos de factura.
     function iniciarCobro() {
@@ -588,6 +1094,8 @@
 
     window.addEventListener('DOMContentLoaded', async () => {
       await cargarCatalogoYRate();
+      // El lector SIEMPRE abierto: arranca automáticamente al entrar a /autopago
+      iniciarCamaraContinuo();
     });
 
     document.getElementById('barcodeInput').addEventListener('keydown', (e) => {
