@@ -402,3 +402,71 @@ test('flow: mandatory name and numbers-only phone, automatic invoice PDF downloa
   assert.equal(resendRes.status, 200);
   assert.equal(resendRes.data.data.phone, '584121234567');
 });
+
+test('strict payment verification and iPad auto-zoom: invoice blocked unless paid, auto-zoom on distant codes and iPad camera support', async t => {
+  const whatsapp = require('../lib/whatsapp');
+  const facturaHtml = fs.readFileSync(require.resolve('../public/factura.html'), 'utf8');
+  const autopagoHtml = fs.readFileSync(require.resolve('../public/autopago.html'), 'utf8');
+
+  // 1. WhatsApp module STRICTLY blocks sending when order is not paid
+  const pendingOrder = { orderId: 'AUTO-PENDING-1', status: 'pending', clientPhone: '04121234567', clientName: 'Ana Lopez' };
+  const blockedPending = await whatsapp.sendInvoiceWhatsApp(pendingOrder);
+  assert.equal(blockedPending.success, false);
+  assert.equal(blockedPending.blocked, true);
+  assert.match(blockedPending.error, /solo puede ser enviada cuando el pago ha sido confirmado/);
+
+  const failedOrder = { orderId: 'AUTO-FAILED-1', status: 'failed', clientPhone: '04121234567', clientName: 'Ana Lopez' };
+  const blockedFailed = await whatsapp.sendInvoiceWhatsApp(failedOrder);
+  assert.equal(blockedFailed.success, false);
+  assert.equal(blockedFailed.blocked, true);
+
+  // 2. Endpoint /api/resend-whatsapp strictly refuses unpaid orders
+  t.mock.method(client, 'request', async (endpoint, method) => {
+    return { ok: true, status: 201, data: { success: true, data: { token: 'tok-strict', url: `${process.env.SKYLINK_BASE_URL}/pay/tok-strict` } } };
+  });
+
+  delete require.cache[require.resolve('../api/index')];
+  const handler = require('../api/index');
+  async function invoke(url, body, method = 'POST') {
+    let status, data;
+    await handler({ url, method, body, headers: { host: 'localhost' } }, {
+      setHeader() {}, writeHead(code) { status = code; }, end(text) { data = JSON.parse(text); }
+    });
+    return { status, data };
+  }
+
+  const createdPending = await invoke('/api/create-payment', {
+    amount: 1, invoiceName: 'Ana Lopez', invoicePhone: '04121234567'
+  });
+  assert.equal(createdPending.status, 200);
+  assert.equal(createdPending.data.data.status, 'pending');
+
+  const resendBlocked = await invoke('/api/resend-whatsapp', { order_id: createdPending.data.data.identifier }, 'POST');
+  assert.equal(resendBlocked.status, 400);
+  assert.match(resendBlocked.data.message, /el pago no ha sido confirmado/);
+
+  // 3. factura.html strictly blocks invoice display, PDF generation and WhatsApp unless status === 'paid'
+  assert.match(facturaHtml, /currentOrder\.status\s*!==\s*'paid'/);
+  assert.match(facturaHtml, /Pago aún no comprobado/);
+  assert.match(facturaHtml, /descargarFacturaPDF/);
+  assert.match(facturaHtml, /buildPdfInvoiceBytes/);
+
+  // 4. iPad Camera & QR detection technology optimizations
+  assert.match(autopagoHtml, /src="\/barcode-detector\.iife\.js"/);
+  assert.match(autopagoHtml, /src="\/zxing\.min\.js"/);
+  assert.match(autopagoHtml, /getZxingFallbackReader/);
+  assert.match(autopagoHtml, /playsinline/);
+  assert.match(autopagoHtml, /webkit-playsinline/);
+  assert.match(autopagoHtml, /qr_code/);
+  assert.match(autopagoHtml, /micro_qr_code/);
+
+  // 5. Auto-Zoom technology when QR / barcode is too far
+  assert.match(autopagoHtml, /activarAutoZoom/);
+  assert.match(autopagoHtml, /setCameraZoom/);
+  assert.match(autopagoHtml, /detectarCodigoLejano/);
+  assert.match(autopagoHtml, /resetAutoZoom/);
+  assert.match(autopagoHtml, /scannerZoomBadge/);
+  assert.match(autopagoHtml, /scanner-zoom-controls/);
+  assert.match(autopagoHtml, /btnZoom1/);
+  assert.match(autopagoHtml, /btnZoom2/);
+});

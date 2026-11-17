@@ -7,6 +7,8 @@
   <!-- Precarga local de WebAssembly de ZXing para escáner ultra-rápido sin CDNs externos -->
   <link rel="preload" href="/zxing_reader.wasm" as="fetch" type="application/wasm" crossorigin>
   <script src="/barcode-detector.iife.js"></script>
+  <!-- Fallback secundario para máxima precisión en Safari iPad -->
+  <script src="/zxing.min.js"></script>
   <link rel="stylesheet" href="/pay-ui.css">
   <style>
     /* Estilos mejorados para Kiosco Autopago */
@@ -171,10 +173,10 @@
     }
     .camera-viewport-container {
       position: relative;
-      height: 200px;
+      height: clamp(230px, 32vh, 360px);
       overflow: hidden;
       background: #020617;
-      border-radius: 12px;
+      border-radius: 14px;
       margin-bottom: 12px;
       box-shadow: inset 0 0 16px rgba(0,0,0,0.6);
       display: flex;
@@ -185,6 +187,7 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
+      transform-origin: center center;
     }
     .scanner-guide-overlay {
       position: absolute;
@@ -195,8 +198,8 @@
     }
     .scanner-aim-frame {
       position: relative;
-      width: 80%;
-      height: 52%;
+      width: min(84%, 380px);
+      height: min(78%, 280px);
       border: 2px dashed rgba(255, 255, 255, 0.65);
       box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
       border-radius: 12px;
@@ -206,6 +209,68 @@
       border: 2.5px solid #10b981;
       box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.2), 0 0 24px #10b981;
       transform: scale(1.02);
+    }
+    /* Badges y controles de Auto-Zoom */
+    .scanner-zoom-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid #38bdf8;
+      color: #38bdf8;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 5px 11px;
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 10;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      animation: pulseZoomBadge 1.2s infinite alternate ease-in-out;
+    }
+    @keyframes pulseZoomBadge {
+      from { border-color: #38bdf8; box-shadow: 0 0 8px rgba(56, 189, 248, 0.4); }
+      to { border-color: #10b981; box-shadow: 0 0 16px rgba(16, 185, 129, 0.6); }
+    }
+    .scanner-zoom-controls {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      display: flex;
+      gap: 6px;
+      z-index: 10;
+    }
+    .btn-zoom-step {
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      font-size: 11px;
+      font-weight: 750;
+      padding: 5px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-zoom-step.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: white;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+    }
+    .btn-zoom-step:hover {
+      background: rgba(30, 41, 59, 0.95);
+    }
+    @media (min-width: 740px) {
+      .camera-viewport-container {
+        height: clamp(280px, 38vh, 440px);
+      }
+      .scanner-aim-frame {
+        width: min(80%, 460px);
+        height: min(78%, 340px);
+      }
     }
     .scanner-corner {
       position: absolute;
@@ -743,7 +808,18 @@
           <button type="button" class="btn-close-mode" onclick="toggleModoRegistro(false)">✕ Salir</button>
         </div>
 
-        <video id="cameraVideo" autoplay playsinline muted></video>
+        <!-- Indicador de Auto-Zoom -->
+        <div id="scannerZoomBadge" class="scanner-zoom-badge" style="display:none;">
+          <span>🔍</span> <span id="scannerZoomText">Auto-Zoom 2.0x</span>
+        </div>
+
+        <!-- Controles rápidos de Zoom (1x / 2x) -->
+        <div class="scanner-zoom-controls">
+          <button type="button" class="btn-zoom-step active" id="btnZoom1" onclick="setManualZoom(1.0)">1x</button>
+          <button type="button" class="btn-zoom-step" id="btnZoom2" onclick="setManualZoom(2.0)">2x</button>
+        </div>
+
+        <video id="cameraVideo" autoplay playsinline webkit-playsinline muted></video>
         <div class="scanner-guide-overlay">
           <div class="scanner-aim-frame" id="scannerAimFrame">
             <div class="scanner-corner corner-tl"></div>
@@ -861,19 +937,19 @@
     // CONFIGURACIÓN OFICIAL DEL ESCÁNER BARCODE DETECTOR
     // ========================================================
     const SCANNER_CONFIG = {
-      // Formatos estándar requeridos para retail / autopago (EAN, UPC, Code 128, QR)
-      formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code'],
+      // Formatos estándar requeridos para retail / autopago y códigos QR en iPad y Android
+      formats: ['qr_code', 'micro_qr_code', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'data_matrix'],
       cooldownMs: 1200,            // Antiduplicado: tiempo para ignorar el MISMO código
-      minIntervalMs: 50,           // Límite ~20 lecturas/seg (50ms por frame)
+      minIntervalMs: 45,           // Límite ~22 lecturas/seg
       video: {
         facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: { min: 640, ideal: 1920, max: 2560 },
+        height: { min: 480, ideal: 1440, max: 1920 },
         frameRate: { ideal: 30 }
       },
-      cropArea: {                  // Franja central para máxima velocidad en WASM / nativo
-        widthRatio: 0.82,
-        heightRatio: 0.52
+      cropArea: {                  // Área amplia adaptada tanto a QR cuadrados como a barras en iPad/móvil
+        widthRatio: 0.88,
+        heightRatio: 0.76
       },
       wasmUrl: '/zxing_reader.wasm'
     };
@@ -1244,6 +1320,8 @@
     // DETECCIÓN CONTINUA CON BARCODE DETECTOR & ZXING-WASM
     // ========================================================
     let detectorInstance = null;
+    let zxingFallbackReader = null;
+
     function getDetector() {
       if (!detectorInstance) {
         // Usa BarcodeDetector nativo (Chrome Android) o WASM ponyfill (Safari iPad)
@@ -1252,10 +1330,163 @@
           console.warn('[AutoPago] BarcodeDetector no disponible');
           return null;
         }
-        detectorInstance = new DetectorClass({ formats: SCANNER_CONFIG.formats });
-        console.log('[AutoPago] BarcodeDetector inicializado con éxito');
+        try {
+          detectorInstance = new DetectorClass({ formats: SCANNER_CONFIG.formats });
+          console.log('[AutoPago] BarcodeDetector inicializado con éxito');
+        } catch (e) {
+          // Si el navegador rechaza algún formato específico, inicializa con lista estándar
+          detectorInstance = new DetectorClass({ formats: ['qr_code', 'ean_13', 'upc_a', 'code_128'] });
+        }
       }
       return detectorInstance;
+    }
+
+    // Fallback secundario con ZXing JS para máxima precisión en Safari / iPad
+    function getZxingFallbackReader() {
+      if (!zxingFallbackReader && window.ZXing && window.ZXing.BrowserMultiFormatReader) {
+        try {
+          zxingFallbackReader = new window.ZXing.BrowserMultiFormatReader();
+          console.log('[AutoPago] Fallback secundario ZXing JS listo para iPad');
+        } catch (e) {
+          console.debug('[AutoPago] Error al crear fallback ZXing:', e);
+        }
+      }
+      return zxingFallbackReader;
+    }
+
+    // ========================================================
+    // SISTEMA DE AUTO-ZOOM INTELIGENTE (HARDWARE + SOFTWARE)
+    // ========================================================
+    let currentZoom = 1.0;
+    let targetZoom = 1.0;
+    let isManualZoom = false;
+    let autoZoomTimeout = null;
+    let autoZoomCooldownUntil = 0;
+    let candidateConsecutiveHits = 0;
+    let emptyFramesCount = 0;
+
+    async function setCameraZoom(zoomVal, isAuto = false) {
+      targetZoom = Math.max(1.0, Math.min(3.0, zoomVal));
+      currentZoom = targetZoom;
+
+      // 1. Zoom de hardware si está soportado por el sensor del iPad o móvil
+      if (currentTrack && typeof currentTrack.applyConstraints === 'function') {
+        try {
+          const caps = currentTrack.getCapabilities ? currentTrack.getCapabilities() : {};
+          if (caps.zoom) {
+            const minZ = caps.zoom.min || 1;
+            const maxZ = caps.zoom.max || 5;
+            const hwZoom = Math.max(minZ, Math.min(maxZ, targetZoom));
+            await currentTrack.applyConstraints({ advanced: [{ zoom: hwZoom }] });
+          }
+        } catch (e) {
+          console.debug('[AutoPago] Hardware zoom no aplicado:', e);
+        }
+      }
+
+      // 2. Zoom digital en viewport (CSS scale suave)
+      const video = document.getElementById('cameraVideo');
+      if (video) {
+        video.style.transform = targetZoom > 1.05 ? `scale(${targetZoom})` : 'none';
+        video.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.4, 1)';
+      }
+
+      // 3. UI y badges
+      updateZoomUI(targetZoom, isAuto);
+    }
+
+    function updateZoomUI(zoomVal, isAuto = false) {
+      const badge = document.getElementById('scannerZoomBadge');
+      const text = document.getElementById('scannerZoomText');
+      const btn1 = document.getElementById('btnZoom1');
+      const btn2 = document.getElementById('btnZoom2');
+
+      if (btn1 && btn2) {
+        btn1.classList.toggle('active', zoomVal <= 1.2);
+        btn2.classList.toggle('active', zoomVal > 1.2);
+      }
+
+      if (badge && text) {
+        if (zoomVal > 1.05) {
+          text.textContent = isAuto ? `Auto-Zoom ${zoomVal.toFixed(1)}x` : `Zoom ${zoomVal.toFixed(1)}x`;
+          badge.style.display = 'inline-flex';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    }
+
+    function setManualZoom(zoomVal) {
+      isManualZoom = true;
+      if (autoZoomTimeout) clearTimeout(autoZoomTimeout);
+      setCameraZoom(zoomVal, false);
+      setTimeout(() => { isManualZoom = false; }, 8000);
+    }
+
+    function activarAutoZoom(nivel = 2.0) {
+      if (isManualZoom || currentZoom >= nivel) return;
+      const now = performance.now();
+      if (now < autoZoomCooldownUntil) return;
+
+      console.log(`[AutoPago Scanner] 🔍 Auto-zoom activado (${nivel}x) por código QR/barras lejano`);
+      setCameraZoom(nivel, true);
+
+      if (autoZoomTimeout) clearTimeout(autoZoomTimeout);
+      autoZoomTimeout = setTimeout(() => {
+        if (!isManualZoom && currentZoom > 1.0) {
+          setCameraZoom(1.0, false);
+          autoZoomCooldownUntil = performance.now() + 1500;
+        }
+      }, 3500);
+    }
+
+    function resetAutoZoom() {
+      if (autoZoomTimeout) clearTimeout(autoZoomTimeout);
+      candidateConsecutiveHits = 0;
+      emptyFramesCount = 0;
+      if (!isManualZoom && currentZoom > 1.05) {
+        setTimeout(() => {
+          setCameraZoom(1.0, false);
+        }, 500);
+      }
+    }
+
+    // Sonda de alta velocidad para detectar patrones densos (QR o códigos lejanos)
+    function detectarCodigoLejano(ctx, w, h) {
+      try {
+        const sampleW = Math.floor(w * 0.5);
+        const sampleH = Math.floor(h * 0.5);
+        const sampleX = Math.floor((w - sampleW) / 2);
+        const sampleY = Math.floor((h - sampleH) / 2);
+
+        const imgData = ctx.getImageData(sampleX, sampleY, sampleW, sampleH);
+        const data = imgData.data;
+
+        // Muestrear líneas horizontales y verticales en la zona central
+        let maxTransitions = 0;
+        const stepY = Math.max(2, Math.floor(sampleH / 5));
+
+        for (let y = 0; y < sampleH; y += stepY) {
+          let transitions = 0;
+          let lastLum = null;
+          const rowStart = y * sampleW * 4;
+          for (let x = 0; x < sampleW; x += 3) {
+            const idx = rowStart + (x * 4);
+            const lum = (data[idx] * 2 + data[idx + 1] * 5 + data[idx + 2]) >> 3;
+            if (lastLum !== null && Math.abs(lum - lastLum) > 38) {
+              transitions++;
+              lastLum = lum;
+            } else if (lastLum === null) {
+              lastLum = lum;
+            }
+          }
+          if (transitions > maxTransitions) maxTransitions = transitions;
+        }
+
+        return maxTransitions >= 11;
+      } catch (e) {
+        return false;
+      }
     }
 
     // Canvas recortado offscreen reutilizable (4x-8x más rápido que decodificar el video entero)
@@ -1585,22 +1816,76 @@
       const vh = video.videoHeight;
       if (!vw || !vh) return;
 
-      // Recorte centrado (Crop Area): acelera el procesamiento WASM y descarta bordes
-      const cropW = Math.max(160, Math.round(vw * SCANNER_CONFIG.cropArea.widthRatio));
-      const cropH = Math.max(100, Math.round(vh * SCANNER_CONFIG.cropArea.heightRatio));
+      // Cálculo de recorte adaptativo con soporte de auto-zoom (Hardware + Software)
+      const zoomFactor = currentZoom || 1.0;
+      const cropRatioW = SCANNER_CONFIG.cropArea.widthRatio / zoomFactor;
+      const cropRatioH = SCANNER_CONFIG.cropArea.heightRatio / zoomFactor;
+
+      const cropW = Math.max(160, Math.round(vw * cropRatioW));
+      const cropH = Math.max(140, Math.round(vh * cropRatioH));
       const cropX = Math.round((vw - cropW) / 2);
       const cropY = Math.round((vh - cropH) / 2);
 
-      const { canvas, ctx } = getScanCanvas(cropW, cropH);
-      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+      // Renderizamos la porción central magnificada para elevar la resolución por módulo
+      const renderW = Math.round(cropW * Math.min(1.5, zoomFactor));
+      const renderH = Math.round(cropH * Math.min(1.5, zoomFactor));
+
+      const { canvas, ctx } = getScanCanvas(renderW, renderH);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, renderW, renderH);
 
       const tStart = performance.now();
-      const barcodes = await detector.detect(canvas);
+      let barcodes = [];
+
+      try {
+        barcodes = await detector.detect(canvas);
+      } catch (err) {
+        console.debug('[AutoPago] Error en detector primario:', err);
+      }
+
+      // Si no detectó en iPad/Safari con BarcodeDetector, recurrir a fallback ZXing JS
+      if ((!barcodes || barcodes.length === 0) && window.ZXing) {
+        const fallback = getZxingFallbackReader();
+        if (fallback) {
+          try {
+            const zxResult = fallback.decodeFromCanvas(canvas);
+            if (zxResult && zxResult.getText()) {
+              barcodes = [{ rawValue: zxResult.getText(), format: String(zxResult.getBarcodeFormat()) }];
+            }
+          } catch (e) {
+            // No barcode in fallback frame
+          }
+        }
+      }
+
       if (barcodes && barcodes.length > 0) {
         const elapsed = (performance.now() - tStart).toFixed(1);
         const first = barcodes[0];
-        console.log(`[AutoPago Scanner] '${first.rawValue}' detectado [${first.format}] en ${elapsed}ms`);
+        console.log(`[AutoPago Scanner] '${first.rawValue}' detectado [${first.format}] en ${elapsed}ms (Zoom: ${zoomFactor.toFixed(1)}x)`);
+        
+        // Código leído con éxito: replegar auto-zoom a 1x
+        resetAutoZoom();
         procesarLectura(first.rawValue, true, elapsed);
+      } else {
+        // No se leyó código decodificable en este frame:
+        // Analizar si hay un código QR o de barras lejano en la zona de enfoque
+        emptyFramesCount++;
+        const hayCandidatoLejano = detectarCodigoLejano(ctx, renderW, renderH);
+
+        if (hayCandidatoLejano) {
+          candidateConsecutiveHits++;
+          // Si detectamos patrón concentrado por 2 frames y el zoom es bajo:
+          // ¡Activar AUTO-ZOOM automáticamente para acercarlo!
+          if (candidateConsecutiveHits >= 2 && currentZoom < 1.8) {
+            activarAutoZoom(2.0);
+          }
+        } else {
+          candidateConsecutiveHits = Math.max(0, candidateConsecutiveHits - 1);
+          if (emptyFramesCount > 35 && currentZoom > 1.05 && !isManualZoom) {
+            resetAutoZoom();
+          }
+        }
       }
     }
 
@@ -1668,6 +1953,10 @@
       badge.className = "scanner-live-badge";
 
       try {
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+        video.muted = true;
+
         mediaStream = await navigator.mediaDevices.getUserMedia({
           video: SCANNER_CONFIG.video,
           audio: false
@@ -1675,6 +1964,14 @@
 
         video.srcObject = mediaStream;
         await video.play();
+
+        // En Safari / iPad esperar metadatos si videoWidth es 0
+        if (!video.videoWidth) {
+          await new Promise(resolve => {
+            video.onloadedmetadata = () => resolve();
+            setTimeout(resolve, 500);
+          });
+        }
 
         viewport.style.display = 'flex';
         badge.textContent = "● Escáner activo (Continuo)";

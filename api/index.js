@@ -749,6 +749,15 @@ async function handleApi(req, res) {
         return res.end(JSON.stringify({ success: false, message: 'Orden no encontrada' }));
       }
 
+      // SEGURIDAD: Solo enviar la factura si el dinero ya fue pagado y confirmado
+      if (order.status !== 'paid') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          message: 'La factura no puede ser enviada porque el pago no ha sido confirmado por la pasarela.'
+        }));
+      }
+
       if (payload.phone) {
         order.clientPhone = normalizePhone(payload.phone);
         order.invoicePhone = order.clientPhone;
