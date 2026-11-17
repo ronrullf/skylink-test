@@ -91,7 +91,7 @@ test('all four creation routes fail closed; failed orders are not saved; setting
   assert.equal((await invoke('/api/create-order-link', { amount: -2 })).status, 400);
   assert.equal((await invoke('/api/create-order-link', { amount: 0 })).status, 400);
   for (const [url, body] of [
-    ['/api/create-payment', { amount: 1, invoiceName: 'María Pérez', invoiceId: 'V-12345678' }],
+    ['/api/create-payment', { amount: 1, invoiceName: 'María Pérez', invoicePhone: '04121234567', invoiceId: 'V-12345678' }],
     ['/api/create-order-link', { amount: 1 }],
     ['/api/agent-chat', { message: 'quiero arroz' }]
   ]) {
@@ -138,7 +138,7 @@ test('kiosk and admin creation routes use the shared canonical HMAC transport', 
   for (const url of ['/api/create-payment', '/api/create-order-link']) {
     let status, result;
     const body = url === '/api/create-payment'
-      ? { amount: 1, invoiceName: 'María Pérez', invoiceId: 'V-12345678' }
+      ? { amount: 1, invoiceName: 'María Pérez', invoicePhone: '04121234567', invoiceId: 'V-12345678' }
       : { amount: 1 };
     await handler({ url, method: 'POST', body, headers: { host: 'localhost' } }, {
       setHeader() {}, writeHead(code) { status = code; }, end(text) { result = JSON.parse(text); }
@@ -174,7 +174,7 @@ test('kiosk requires invoice identity and synchronizes the provider payment stat
 
   assert.equal((await invoke('/api/create-payment', { amount: 1 })).status, 400);
   const created = await invoke('/api/create-payment', {
-    amount: 1, invoiceName: 'María Pérez', invoiceId: 'V-12345678'
+    amount: 1, invoiceName: 'María Pérez', invoicePhone: '04121234567', invoiceId: 'V-12345678'
   });
   assert.equal(created.status, 200);
   const order = await invoke(`/api/order-status/${created.data.data.identifier}`, null, 'GET');
@@ -342,18 +342,25 @@ test('flow: mandatory name and numbers-only phone, automatic invoice PDF downloa
   const sampleOrder = {
     orderId: 'AUTO-TEST1',
     clientName: 'Pedro Perez',
+    clientId: 'V-12345678',
     clientPhone: '04121234567',
     amountBs: 50.00,
     amount: 1.33,
-    reference: 'REF-BANK-100'
+    reference: 'REF-BANK-100',
+    items: [
+      { name: 'Harina PAN 1kg', qty: 2, priceBs: 25.00, icon: '🌽' }
+    ]
   };
   const msg = whatsapp.buildInvoiceMessage(sampleOrder, 'https://skylink-test.vercel.app');
   assert.match(msg, /Pedro Perez/);
+  assert.match(msg, /V-12345678/);
+  assert.match(msg, /584121234567/);
+  assert.match(msg, /Harina PAN 1kg/);
   assert.match(msg, /AUTO-TEST1/);
   assert.match(msg, /Bs\. 50\.00/);
   assert.match(msg, /factura\?order_id=AUTO-TEST1/);
 
-  // 4. Backend validation: /api/create-payment enforces name + numeric phone
+  // 4. Backend validation: /api/create-payment enforces name, numeric phone and mandatory cédula
   t.mock.method(client, 'request', async (endpoint, method) => {
     if (method === 'GET') {
       return { ok: true, status: 200, data: { success: true, data: { status: 'AUTHORIZED', reference: 'REF-BANK-200' } } };
@@ -372,23 +379,33 @@ test('flow: mandatory name and numbers-only phone, automatic invoice PDF downloa
   }
 
   // Missing name
-  const resNoName = await invoke('/api/create-payment', { amount: 1, invoicePhone: '04121234567' });
+  const resNoName = await invoke('/api/create-payment', { amount: 1, invoicePhone: '04121234567', invoiceId: 'V-12345678' });
   assert.equal(resNoName.status, 400);
 
   // Invalid phone (non-numeric)
-  const resBadPhone = await invoke('/api/create-payment', { amount: 1, invoiceName: 'Carlos Test', invoicePhone: 'abc123456' });
+  const resBadPhone = await invoke('/api/create-payment', { amount: 1, invoiceName: 'Carlos Test', invoicePhone: 'abc123456', invoiceId: 'V-12345678' });
   assert.equal(resBadPhone.status, 400);
 
-  // Valid name and numeric phone (cédula omitted defaults to V-00000000)
-  const resOk = await invoke('/api/create-payment', {
+  // Missing cédula (must fail 400 because cédula is mandatory)
+  const resNoId = await invoke('/api/create-payment', {
     amount: 1,
     invoiceName: 'Carlos Gomez',
     invoicePhone: '04121234567'
   });
+  assert.equal(resNoId.status, 400);
+  assert.match(resNoId.data.message, /cédula o RIF es obligatoria/i);
+
+  // Valid name, numeric phone and valid cédula
+  const resOk = await invoke('/api/create-payment', {
+    amount: 1,
+    invoiceName: 'Carlos Gomez',
+    invoicePhone: '04121234567',
+    invoiceId: '12345678'
+  });
   assert.equal(resOk.status, 200);
   assert.equal(resOk.data.data.clientName, 'Carlos Gomez');
   assert.equal(resOk.data.data.clientPhone, '584121234567');
-  assert.equal(resOk.data.data.clientId, 'V-00000000');
+  assert.equal(resOk.data.data.clientId, 'V-12345678');
 
   // Verify polling transitions to paid and dispatches WhatsApp notification
   const orderCheck = await invoke(`/api/order-status/${resOk.data.data.identifier}`, null, 'GET');
@@ -436,7 +453,7 @@ test('strict payment verification and iPad auto-zoom: invoice blocked unless pai
   }
 
   const createdPending = await invoke('/api/create-payment', {
-    amount: 1, invoiceName: 'Ana Lopez', invoicePhone: '04121234567'
+    amount: 1, invoiceName: 'Ana Lopez', invoicePhone: '04121234567', invoiceId: 'V-87654321'
   });
   assert.equal(createdPending.status, 200);
   assert.equal(createdPending.data.data.status, 'pending');

@@ -107,8 +107,8 @@
           <p class="hint">Al pagar, tu factura se descargará y se enviará por WhatsApp a este número.</p>
         </div>
         <div class="field">
-          <label for="invoiceId">Cédula o RIF <small style="color:#64748b; font-weight:normal;">(Opcional)</small></label>
-          <input id="invoiceId" name="invoiceId" maxlength="12" placeholder="Ej: V-12345678 (Opcional)">
+          <label for="invoiceId">Cédula o RIF *</label>
+          <input id="invoiceId" name="invoiceId" maxlength="15" placeholder="Ej: V-12345678" required>
         </div>
         <button class="primary" id="continueButton" type="submit">Continuar al pago</button>
         <p class="message error" id="formError" role="alert" hidden></p>
@@ -174,9 +174,10 @@
 
     function invoiceIsValid(name, phone, idNumber) {
       const cleanPhone = (phone || '').replace(/\D/g, '');
-      const nameValid = name.length >= 2;
+      const nameValid = (name || '').trim().length >= 2;
       const phoneValid = cleanPhone.length >= 10 && cleanPhone.length <= 15;
-      const idValid = !idNumber || /^(?:[VE]-?)?\d{5,10}$/i.test(idNumber);
+      const cleanId = (idNumber || '').trim();
+      const idValid = /^(?:[VEJG]-?)?\d{5,10}$/i.test(cleanId);
       return nameValid && phoneValid && idValid;
     }
 
@@ -184,7 +185,7 @@
       event.preventDefault();
       const name = document.getElementById('invoiceName').value.trim();
       const phone = (document.getElementById('invoicePhone').value || '').replace(/\D/g, '');
-      const idNumber = document.getElementById('invoiceId').value.trim().toUpperCase() || 'V-00000000';
+      let idNumber = document.getElementById('invoiceId').value.trim().toUpperCase();
       const errorBox = document.getElementById('formError');
       const button = document.getElementById('continueButton');
 
@@ -196,6 +197,15 @@
       if (phone.length < 10 || phone.length > 15) {
         setError(errorBox, 'Ingresa un número de WhatsApp válido (solo números, ej: 04121234567).');
         return;
+      }
+
+      if (!idNumber || !/^(?:[VEJG]-?)?\d{5,10}$/i.test(idNumber)) {
+        setError(errorBox, 'La cédula o RIF es obligatoria (ej: V-12345678).');
+        return;
+      }
+
+      if (/^\d+$/.test(idNumber)) {
+        idNumber = 'V-' + idNumber;
       }
 
       setError(errorBox, '');

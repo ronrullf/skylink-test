@@ -538,10 +538,17 @@ async function handleApi(req, res) {
             order.status = 'paid';
             order.reference = reference || 'SK-' + Math.floor(10000000 + Math.random() * 90000000);
             await dispatchOutboundWebhook('payment.success', order);
-            try {
-              order.whatsappDispatch = await sendInvoiceWhatsApp(order);
-            } catch (waErr) {
-              order.whatsappDispatch = { success: false, error: waErr.message };
+            if (!order._dispatchingWhatsApp) {
+              order._dispatchingWhatsApp = true;
+              try {
+                console.log(`[SkyPay Webhook] Despachando comprobante WhatsApp para orden ${order.orderId}...`);
+                order.whatsappDispatch = await sendInvoiceWhatsApp(order);
+              } catch (waErr) {
+                console.error(`[SkyPay Webhook] Error en despacho WhatsApp orden ${order.orderId}:`, waErr.message);
+                order.whatsappDispatch = { success: false, error: waErr.message };
+              } finally {
+                delete order._dispatchingWhatsApp;
+              }
             }
           } else if (status === 'FAILED' || status === 'REJECTED') {
             order.status = 'failed';
@@ -600,31 +607,30 @@ async function handleApi(req, res) {
         }));
       }
 
-      // Validación de Teléfono / WhatsApp (debe contener solo números si se envía)
-      const hasPhone = rawPhone.length > 0;
+      // Validación de Teléfono / WhatsApp obligatorio (solo números, 10 a 15 dígitos)
       const cleanPhone = normalizePhone(rawPhone);
       const isDigitsOnly = /^\d+$/.test(rawPhone.replace(/[\s+-]/g, ''));
-      const hasValidId = /^(?:[VE]-?)?\d{5,10}$/i.test(invoiceId);
-
-      if (hasPhone) {
-        if (!isDigitsOnly || cleanPhone.length < 10 || cleanPhone.length > 15) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({
-            success: false,
-            message: 'El número de teléfono debe contener solo números (mínimo 10 dígitos).'
-          }));
-        }
-      } else if (!hasValidId) {
+      if (!rawPhone || !isDigitsOnly || cleanPhone.length < 10 || cleanPhone.length > 15) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({
           success: false,
-          message: 'Nombre y número de teléfono/WhatsApp válidos son obligatorios para continuar.'
+          message: 'El número de teléfono/WhatsApp es obligatorio (solo números, 10 a 15 dígitos).'
         }));
       }
 
-      // Si no se proporcionó cédula, asignar consumidor final por defecto
-      if (!invoiceId) {
-        invoiceId = 'V-00000000';
+      // Validación de Cédula o RIF obligatoria
+      if (!invoiceId || !/^(?:[VEJG]-?)?\d{5,10}$/i.test(invoiceId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          message: 'La cédula o RIF es obligatoria (ej: V-12345678).'
+        }));
+      }
+
+      if (/^\d+$/.test(invoiceId)) {
+        invoiceId = 'V-' + invoiceId;
+      } else {
+        invoiceId = invoiceId.toUpperCase();
       }
       let amountBs = 0;
 
@@ -722,13 +728,25 @@ async function handleApi(req, res) {
 
       const previousStatus = order.status;
       try { await refreshPaymentStatus(order); } catch (e) {}
-      if (previousStatus !== 'paid' && order.status === 'paid') {
+      const isPaid = order.status === 'paid';
+      const hasDispatched = order.whatsappDispatch && (order.whatsappDispatch.status === 'sent' || order.whatsappDispatch.provider === 'green-api');
+
+      if (previousStatus !== 'paid' && isPaid) {
         await dispatchOutboundWebhook('payment.success', order);
+      }
+
+      // Despacho inmediato y automático por WhatsApp vía Green API
+      if (isPaid && !hasDispatched && !order._dispatchingWhatsApp) {
+        order._dispatchingWhatsApp = true;
         const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
         try {
+          console.log(`[SkyPay] Despachando automáticamente comprobante WhatsApp para orden ${order.orderId || id}...`);
           order.whatsappDispatch = await sendInvoiceWhatsApp(order, { baseUrl: hostUrl });
         } catch (waErr) {
+          console.error(`[SkyPay] Error en despacho WhatsApp orden ${order.orderId || id}:`, waErr.message);
           order.whatsappDispatch = { success: false, error: waErr.message };
+        } finally {
+          delete order._dispatchingWhatsApp;
         }
       }
 
