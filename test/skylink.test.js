@@ -279,3 +279,36 @@ test('autopago allows scanning to register custom products and saving them with 
   assert.equal(resUpdated.status, 200);
   assert.equal(resUpdated.data.data.priceBs, 25.00);
 });
+
+test('autopago phone layout: scanner and cart only, item/bulk deletion, and notifications', () => {
+  const autopagoHtml = fs.readFileSync(require.resolve('../public/autopago.html'), 'utf8');
+
+  // 1. Being able to remove individual items
+  assert.match(autopagoHtml, /function eliminarProducto\(id\)/);
+  assert.match(autopagoHtml, /class="btn-delete-item"/);
+  assert.match(autopagoHtml, /🗑️/);
+
+  // 2. Being able to remove everything from the cart
+  assert.match(autopagoHtml, /function limpiarCarrito\(\)/);
+  assert.match(autopagoHtml, /id="btnClearHeader"/);
+  assert.match(autopagoHtml, /id="btnClearFooter"/);
+  assert.match(autopagoHtml, /Vaciar todo/);
+
+  // 3. Show a notification when a product is scanned, added, or removed
+  assert.match(autopagoHtml, /id="kioskToastNotification"/);
+  assert.match(autopagoHtml, /function mostrarNotificacion\(mensaje/);
+  assert.match(autopagoHtml, /\.kiosk-toast-notification/);
+
+  // 4. Show the cart to pay (cart list, totals in Bs/USD, proceed button)
+  assert.match(autopagoHtml, /id="cartItems"/);
+  assert.match(autopagoHtml, /id="cartTotalBS"/);
+  assert.match(autopagoHtml, /id="cartTotalUSD"/);
+  assert.match(autopagoHtml, /id="btnPay"/);
+  assert.match(autopagoHtml, /id="btnStickyPay"/);
+
+  // 5 & 6. Layout shows scanner and cart only (catalog product grid hidden / substituted)
+  assert.match(autopagoHtml, /id="kioskScannedBox"/);
+  assert.match(autopagoHtml, /scanned-item-card/);
+  assert.match(autopagoHtml, /scanned-empty-state/);
+  assert.match(autopagoHtml, /id="productsGrid"\s+style="display:none;"/);
+});

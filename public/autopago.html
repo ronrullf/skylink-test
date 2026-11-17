@@ -462,9 +462,229 @@
     .btn-save-prod:hover {
       background: #059669;
     }
+
+    /* Notificación flotante superior al escanear/añadir */
+    .kiosk-toast-notification {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-140px);
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 12px 22px;
+      border-radius: 40px;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      z-index: 99999;
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+      opacity: 0;
+      pointer-events: none;
+      max-width: 92vw;
+      white-space: nowrap;
+      border: 1.5px solid rgba(255, 255, 255, 0.2);
+    }
+    .kiosk-toast-notification.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    .kiosk-toast-notification.success {
+      background: linear-gradient(135deg, #065f46, #047857);
+      border-color: #10b981;
+    }
+    .kiosk-toast-notification.info {
+      background: linear-gradient(135deg, #0c4a6e, #0284c7);
+      border-color: #38bdf8;
+    }
+    .kiosk-toast-notification.warning {
+      background: linear-gradient(135deg, #78350f, #d97706);
+      border-color: #f59e0b;
+    }
+
+    /* Layout Optimizado: Solo Escáner + Carrito */
+    .kiosk-container {
+      display: grid !important;
+      gap: 16px !important;
+      max-width: 1200px !important;
+      margin: 0 auto !important;
+      padding: 12px 16px !important;
+    }
+
+    @media (max-width: 739px) {
+      .kiosk-container {
+        grid-template-columns: 1fr !important;
+        padding-bottom: 96px !important;
+      }
+      .scanner-card-box {
+        padding: 12px !important;
+        margin-bottom: 0 !important;
+      }
+      .camera-viewport-container {
+        height: 180px !important;
+      }
+    }
+
+    @media (min-width: 740px) {
+      .kiosk-container {
+        grid-template-columns: 1.05fr 0.95fr !important;
+        align-items: start !important;
+      }
+    }
+
+    /* Tarjetas de artículos escaneados */
+    .cart-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    .scanned-items-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 420px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-right: 2px;
+      min-height: 120px;
+    }
+    .scanned-item-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      transition: all 0.15s ease;
+    }
+    .scanned-item-card:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+    .scanned-item-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex: 1;
+    }
+    .scanned-item-icon {
+      font-size: 22px;
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .scanned-item-info {
+      min-width: 0;
+      flex: 1;
+    }
+    .scanned-item-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: #0f172a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .scanned-item-unitprice {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 1px;
+    }
+    .scanned-item-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .scanned-item-subtotal {
+      font-size: 14px;
+      font-weight: 800;
+      color: #0f172a;
+      text-align: right;
+      min-width: 68px;
+    }
+    .scanned-item-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-delete-item {
+      width: 32px;
+      height: 32px;
+      background: #fee2e2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+    .btn-delete-item:hover, .btn-delete-item:active {
+      background: #ef4444;
+      color: white;
+      border-color: #ef4444;
+      transform: scale(1.05);
+    }
+    .btn-clear-header {
+      background: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+    .btn-clear-header:hover {
+      background: #ef4444;
+      color: white;
+    }
+    .scanned-empty-state {
+      text-align: center;
+      padding: 34px 16px;
+      color: #64748b;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .scanned-empty-state .empty-icon {
+      font-size: 38px;
+      background: #f1f5f9;
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      border: 2px dashed #cbd5e1;
+    }
   </style>
 </head>
 <body class="kiosk-body">
+  <!-- Notificación Flotante Superior -->
+  <div id="kioskToastNotification" class="kiosk-toast-notification"></div>
 
   <!-- Barra Superior Kiosco -->
   <header class="kiosk-header">
@@ -488,104 +708,102 @@
 
   <section class="page-heading kiosk-heading">
     <div>
-      <p class="eyebrow">AUTOPAGO EN TIENDA</p>
-      <h1>Selecciona o escanea tus productos</h1>
-      <p>Todos nuestros productos básicos están cotizados en Bolívares oficiales (rango 20 - 25 Bs).</p>
+      <p class="eyebrow">AUTOPAGO EXPRESS</p>
+      <h1>Escanea tus productos para pagar</h1>
+      <p>El escáner agrega automáticamente tus artículos al carrito oficial.</p>
     </div>
     <span class="service-badge">Pasarela Oficial Skylink Pay</span>
   </section>
 
   <div class="container kiosk-container">
-    <main>
-      <!-- Escáner de Productos (Siempre Abierto con BarcodeDetector) -->
-      <div class="scanner-card-box">
-        <div class="scanner-header-bar">
-          <div class="scanner-title-group">
-            <span class="scanner-main-title">📷 Escáner de Código de Barras & QR</span>
-            <span class="scanner-live-badge active" id="cameraLiveBadge">Iniciando escáner continuo...</span>
-          </div>
-          <div class="scanner-actions">
-            <button type="button" class="btn-register-mode" id="btnRegisterMode" onclick="toggleModoRegistro()" title="Apunta la cámara para registrar un nuevo producto">
-              ➕ Registrar Producto
-            </button>
-            <button type="button" class="btn-torch" id="btnTorch" style="display:none;" title="Encender/apagar linterna" onclick="toggleTorch()">
-              🔦 Linterna
-            </button>
-            <button type="button" class="btn-toggle-camera" id="btnToggleCamera" onclick="toggleCamaraManual()">
-              Pausar cámara
-            </button>
-          </div>
+    <!-- 1. Sección del Escáner (Cámara siempre activa) -->
+    <div class="scanner-card-box">
+      <div class="scanner-header-bar">
+        <div class="scanner-title-group">
+          <span class="scanner-main-title">📷 Escáner de Códigos</span>
+          <span class="scanner-live-badge active" id="cameraLiveBadge">Iniciando escáner continuo...</span>
         </div>
-
-        <div class="camera-viewport-container" id="cameraViewport">
-          <!-- Banner interactivo de Modo Registro -->
-          <div class="mode-register-banner" id="modeRegisterBanner" style="display:none;">
-            <span>🎯 <strong>MODO REGISTRO:</strong> Escanea el código o QR para capturarlo</span>
-            <button type="button" class="btn-close-mode" onclick="toggleModoRegistro(false)">✕ Salir</button>
-          </div>
-
-          <video id="cameraVideo" autoplay playsinline muted></video>
-          <div class="scanner-guide-overlay">
-            <div class="scanner-aim-frame" id="scannerAimFrame">
-              <div class="scanner-corner corner-tl"></div>
-              <div class="scanner-corner corner-tr"></div>
-              <div class="scanner-corner corner-bl"></div>
-              <div class="scanner-corner corner-br"></div>
-              <div class="scanner-laser"></div>
-            </div>
-          </div>
-          <div class="scanner-toast" id="scannerToast" style="display:none;"></div>
-        </div>
-
-        <div class="scanner-banner">
-          <input type="text" id="barcodeInput" aria-label="Código de barras" placeholder="Escribe o escanea con pistola/cámara (ej: 7591001)...">
-          <button type="button" class="btn-add-code" onclick="procesarCodigoManual()">Añadir al Carrito</button>
-        </div>
-
-        <!-- Contenedor dinámico si se escanea un código no registrado -->
-        <div id="unregPromptBox" style="display:none;"></div>
-
-        <!-- Chips de prueba rápida -->
-        <div class="scanner-quick-chips">
-          <span class="chips-label">Prueba rápida:</span>
-          <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591001')">🌽 Harina PAN (25 Bs)</button>
-          <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591473005492')">🍚 Arroz 1kg (23.50 Bs)</button>
-          <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591002')">☕ Café 100g (24.50 Bs)</button>
-          <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591003')">🍝 Pasta 500g (21 Bs)</button>
-          <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591006')">🍳 Aceite 500ml (25 Bs)</button>
+        <div class="scanner-actions">
+          <button type="button" class="btn-register-mode" id="btnRegisterMode" onclick="toggleModoRegistro()" title="Apunta la cámara para registrar un nuevo producto">
+            ➕ Registrar
+          </button>
+          <button type="button" class="btn-torch" id="btnTorch" style="display:none;" title="Encender/apagar linterna" onclick="toggleTorch()">
+            🔦 Linterna
+          </button>
+          <button type="button" class="btn-toggle-camera" id="btnToggleCamera" onclick="toggleCamaraManual()">
+            Pausar
+          </button>
         </div>
       </div>
 
-      <!-- Filtro de Categorías -->
-      <div class="category-pills" id="categoryTabs">
-        <button type="button" class="category-pill active" onclick="filtrarCategoria('Todos', this)">✨ Todos los productos</button>
-        <button type="button" class="category-pill" onclick="filtrarCategoria('Víveres', this)">🌾 Víveres</button>
-        <button type="button" class="category-pill" onclick="filtrarCategoria('Lácteos', this)">🧈 Lácteos</button>
-        <button type="button" class="category-pill" onclick="filtrarCategoria('Bebidas', this)">☕ Bebidas</button>
-        <button type="button" class="category-pill" onclick="filtrarCategoria('Snacks', this)">🍪 Snacks</button>
-        <button type="button" class="category-pill" onclick="filtrarCategoria('Salsas', this)">🍅 Salsas</button>
+      <div class="camera-viewport-container" id="cameraViewport">
+        <!-- Banner interactivo de Modo Registro -->
+        <div class="mode-register-banner" id="modeRegisterBanner" style="display:none;">
+          <span>🎯 <strong>MODO REGISTRO:</strong> Escanea el código o QR para capturarlo</span>
+          <button type="button" class="btn-close-mode" onclick="toggleModoRegistro(false)">✕ Salir</button>
+        </div>
+
+        <video id="cameraVideo" autoplay playsinline muted></video>
+        <div class="scanner-guide-overlay">
+          <div class="scanner-aim-frame" id="scannerAimFrame">
+            <div class="scanner-corner corner-tl"></div>
+            <div class="scanner-corner corner-tr"></div>
+            <div class="scanner-corner corner-bl"></div>
+            <div class="scanner-corner corner-br"></div>
+            <div class="scanner-laser"></div>
+          </div>
+        </div>
+        <div class="scanner-toast" id="scannerToast" style="display:none;"></div>
       </div>
 
-      <!-- Grid de Productos (Todos 20 - 25 Bs) -->
-      <div class="products-grid" id="productsGrid">
-        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #94a3b8;">Cargando catálogo oficial...</div>
+      <div class="scanner-banner">
+        <input type="text" id="barcodeInput" aria-label="Código de barras" placeholder="Escribe o escanea código (ej: 7591001)...">
+        <button type="button" class="btn-add-code" onclick="procesarCodigoManual()">Añadir</button>
       </div>
-    </main>
 
-    <!-- Barra Lateral del Carrito (En iPad: siempre encajada en altura, con botón de pago fijo) -->
-    <aside class="cart-box">
-      <h2>
-        <span>Mi Carrito</span>
-        <span class="price-25-badge" id="cartItemCount">0 artículos</span>
-      </h2>
+      <!-- Contenedor dinámico si se escanea un código no registrado -->
+      <div id="unregPromptBox" style="display:none;"></div>
 
-      <div class="cart-items" id="cartItems">
-        <div style="color: #94a3b8; font-size: 13px; text-align: center; margin-top: 40px;">
-          🛒 Toca cualquier producto para añadirlo al carrito
+      <!-- Chips de prueba rápida -->
+      <div class="scanner-quick-chips">
+        <span class="chips-label">Prueba rápida:</span>
+        <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591001')">🌽 Harina PAN (25 Bs)</button>
+        <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591473005492')">🍚 Arroz 1kg (23.50 Bs)</button>
+        <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591002')">☕ Café 100g (24.50 Bs)</button>
+        <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591003')">🍝 Pasta 500g (21 Bs)</button>
+        <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591006')">🍳 Aceite 500ml (25 Bs)</button>
+      </div>
+    </div>
+
+    <!-- 2. Sección de Artículos Escaneados (Carrito Principal que sustituye el catálogo) -->
+    <div class="cart-box kiosk-scanned-box" id="kioskScannedBox">
+      <div class="cart-header-row">
+        <div>
+          <h2 style="margin:0; font-size:17px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px;">
+            <span>🛒 Artículos Escaneados</span>
+            <span class="price-25-badge" id="cartItemCount">0 artículos</span>
+          </h2>
+          <p style="margin:2px 0 0; font-size:12px; color:#64748b;">
+            Aquí verás los productos que vayas escaneando listos para pagar
+          </p>
+        </div>
+        <button type="button" class="btn-clear-header" id="btnClearHeader" onclick="limpiarCarrito()" style="display:none;" title="Vaciar todo el carrito">
+          🗑️ Vaciar todo
+        </button>
+      </div>
+
+      <!-- Lista de Items Escaneados con controles y botón de eliminar individual -->
+      <div class="scanned-items-list" id="cartItems">
+        <div class="scanned-empty-state">
+          <span class="empty-icon">📷</span>
+          <div style="font-weight:700; font-size:15px; color:#0f172a;">Ningún producto escaneado aún</div>
+          <p style="color:#64748b; font-size:12px; margin:2px 0 0; max-width:260px;">
+            Pasa tus productos frente a la cámara para verlos en tu carrito y pagarlos.
+          </p>
         </div>
       </div>
 
-      <!-- Acciones y botón de pago anclados al fondo del panel sin scroll -->
+      <!-- Resumen de Totales y Botón de Pago Principal -->
       <div class="cart-footer-actions">
         <div class="cart-total-box">
           <div class="cart-total-row">
@@ -593,21 +811,26 @@
             <span class="cart-total-usd" id="cartTotalUSD">$0.00</span>
           </div>
           <div class="cart-total-row">
-            <span style="font-size:13px; color:#0f172a; font-weight:700;">TOTAL A PAGAR:</span>
+            <span style="font-size:15px; color:#0f172a; font-weight:800;">TOTAL A PAGAR:</span>
             <span class="cart-total-bs" id="cartTotalBS">Bs. 0.00</span>
           </div>
         </div>
 
         <p id="paymentError" class="inline-message" role="alert" hidden></p>
-        
+
         <button class="btn-pay" id="btnPay" disabled onclick="iniciarCobro()">
           Comprar
-          <span>Continuar a datos de facturación</span>
+          <span>Continuar a datos de facturación ➔</span>
         </button>
 
-        <button class="btn-clear" onclick="limpiarCarrito()">Vaciar carrito</button>
+        <button type="button" class="btn-clear" id="btnClearFooter" onclick="limpiarCarrito()" style="display:none;">
+          🗑️ Vaciar todo el carrito
+        </button>
       </div>
-    </aside>
+    </div>
+
+    <!-- Contenedor oculto de compatibilidad -->
+    <div id="productsGrid" style="display:none;"></div>
   </div>
 
   <footer class="page-footer">
@@ -807,6 +1030,7 @@
 
     function renderCatalogo() {
       const grid = document.getElementById('productsGrid');
+      if (!grid) return;
       grid.innerHTML = '';
 
       const filtrados = categoriaSeleccionada === 'Todos'
@@ -842,12 +1066,30 @@
       });
     }
 
+    // ========================================================
+    // NOTIFICACIÓN FLOTANTE VISIBLE EN MÓVILES Y KIOSCO
+    // ========================================================
+    let notificationTimer = null;
+    function mostrarNotificacion(mensaje, tipo = 'success') {
+      const toast = document.getElementById('kioskToastNotification');
+      if (!toast) return;
+
+      toast.textContent = mensaje;
+      toast.className = `kiosk-toast-notification ${tipo} show`;
+
+      if (notificationTimer) clearTimeout(notificationTimer);
+      notificationTimer = setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2400);
+    }
+
     function agregarProducto(prod) {
       if (creating) return;
-      playBeep(900, 0.08);
+      playBeep(1046, 0.08);
       const item = carrito.find(p => p.id === prod.id);
       if (item) {
         item.qty++;
+        mostrarNotificacion(`✓ ${prod.name} (x${item.qty} · Bs. ${(item.priceBs * item.qty).toFixed(2)})`, 'success');
       } else {
         carrito.push({
           id: prod.id,
@@ -858,26 +1100,53 @@
           icon: prod.icon || '📦',
           qty: 1
         });
+        mostrarNotificacion(`✓ ${prod.name} (Bs. ${Number(prod.priceBs).toFixed(2)}) agregado`, 'success');
       }
       actualizarCarrito();
     }
 
     function cambiarCantidad(id, delta) {
       if (creating) return;
-      playBeep(700, 0.05);
       const item = carrito.find(p => p.id === id);
-      if (item) {
+      if (!item) return;
+
+      if (delta > 0) {
+        playBeep(1046, 0.06);
         item.qty += delta;
+        mostrarNotificacion(`+1 ${item.name} (Total: ${item.qty})`, 'success');
+      } else {
+        playBeep(650, 0.06);
+        item.qty += delta;
+        if (item.qty <= 0) {
+          carrito = carrito.filter(p => p.id !== id);
+          mostrarNotificacion(`🗑️ "${item.name}" eliminado del carrito`, 'info');
+        } else {
+          mostrarNotificacion(`-1 ${item.name} (Total: ${item.qty})`, 'info');
+        }
       }
-      carrito = carrito.filter(p => p.qty > 0);
       actualizarCarrito();
     }
 
-    function limpiarCarrito() {
+    function eliminarProducto(id) {
       if (creating) return;
+      const item = carrito.find(p => p.id === id);
+      if (!item) return;
+      playBeep(550, 0.08);
+      if ('vibrate' in navigator) try { navigator.vibrate(30); } catch (e) {}
+      carrito = carrito.filter(p => p.id !== id);
+      actualizarCarrito();
+      mostrarNotificacion(`🗑️ "${item.name}" eliminado del carrito`, 'info');
+    }
+
+    function limpiarCarrito() {
+      if (creating || carrito.length === 0) return;
+      playBeep(450, 0.1);
+      if ('vibrate' in navigator) try { navigator.vibrate(40); } catch (e) {}
+      const count = carrito.reduce((sum, item) => sum + item.qty, 0);
       carrito = [];
       showError("");
       actualizarCarrito();
+      mostrarNotificacion(`🗑️ Carrito vaciado (${count} ${count === 1 ? 'artículo' : 'artículos'})`, 'info');
     }
 
     function actualizarCarrito() {
@@ -891,16 +1160,33 @@
       const stickyTotalBs = document.getElementById('stickyTotalBs');
       const stickyTotalUsd = document.getElementById('stickyTotalUsd');
 
+      const btnClearHeader = document.getElementById('btnClearHeader');
+      const btnClearFooter = document.getElementById('btnClearFooter');
+
       const totalItems = carrito.reduce((sum, item) => sum + item.qty, 0);
       countEl.textContent = `${totalItems} ${totalItems === 1 ? 'artículo' : 'artículos'}`;
       if (stickyCount) stickyCount.textContent = `${totalItems} ${totalItems === 1 ? 'artículo' : 'artículos'}`;
 
+      if (btnClearHeader) btnClearHeader.style.display = totalItems > 0 ? 'inline-flex' : 'none';
+      if (btnClearFooter) btnClearFooter.style.display = totalItems > 0 ? 'block' : 'none';
+
       if (carrito.length === 0) {
-        container.innerHTML = '<div style="color: #94a3b8; font-size: 13px; text-align: center; margin-top: 40px;">🛒 Toca cualquier producto para añadirlo al carrito</div>';
+        container.innerHTML = `
+          <div class="scanned-empty-state">
+            <span class="empty-icon">📷</span>
+            <div style="font-weight:700; font-size:15px; color:#0f172a;">Ningún producto escaneado aún</div>
+            <p style="color:#64748b; font-size:12px; margin:2px 0 0; max-width:260px;">
+              Pasa tus productos frente a la cámara para verlos en tu carrito y pagarlos.
+            </p>
+          </div>
+        `;
         totalUsdEl.textContent = '$0.00';
         totalBsEl.textContent = 'Bs. 0.00';
         if (stickyTotalBs) stickyTotalBs.textContent = 'Bs. 0.00';
         if (stickyTotalUsd) stickyTotalUsd.textContent = '$0.00';
+        if (btnPay) {
+          btnPay.innerHTML = `Comprar <span>Continuar a datos de facturación ➔</span>`;
+        }
         actualizarEstadoPago();
         return;
       }
@@ -913,20 +1199,31 @@
         totalBs += itemTotalBs;
 
         const row = document.createElement('div');
-        row.className = 'cart-item';
+        row.className = 'scanned-item-card';
         row.innerHTML = `
-          <div>
-            <div style="font-weight:700; color:#0f172a;">${item.icon} ${item.name}</div>
-            <div style="font-size:11px; color:#64748b;">Bs. ${item.priceBs.toFixed(2)} c/u</div>
-            <div class="qty-control">
-              <button type="button" onclick="cambiarCantidad(${item.id}, -1)">−</button>
-              <span style="font-weight:700; font-size:12px;">${item.qty}</span>
-              <button type="button" onclick="cambiarCantidad(${item.id}, 1)">+</button>
+          <div class="scanned-item-left">
+            <span class="scanned-item-icon">${item.icon || '📦'}</span>
+            <div class="scanned-item-info">
+              <div class="scanned-item-title">${item.name}</div>
+              <div class="scanned-item-unitprice">
+                <strong>Bs. ${item.priceBs.toFixed(2)}</strong> c/u
+                <span style="color:#94a3b8; font-size:10px;">≈ $${(item.priceBs / bcvRate).toFixed(2)}</span>
+                <span style="color:#cbd5e1; font-size:10px;">· ${item.code}</span>
+              </div>
             </div>
           </div>
-          <div style="text-align:right;">
-            <strong style="font-size:14px; color:#0f172a;">Bs. ${itemTotalBs.toFixed(2)}</strong>
-            <div style="font-size:10px; color:#64748b;">≈ $${(itemTotalBs / bcvRate).toFixed(2)}</div>
+          <div class="scanned-item-right">
+            <div class="scanned-item-subtotal">Bs. ${itemTotalBs.toFixed(2)}</div>
+            <div class="scanned-item-controls">
+              <div class="qty-control">
+                <button type="button" onclick="cambiarCantidad(${item.id}, -1)" title="Reducir">−</button>
+                <span class="qty-number">${item.qty}</span>
+                <button type="button" onclick="cambiarCantidad(${item.id}, 1)" title="Aumentar">+</button>
+              </div>
+              <button type="button" class="btn-delete-item" onclick="eliminarProducto(${item.id})" title="Eliminar producto">
+                🗑️
+              </button>
+            </div>
           </div>
         `;
         container.appendChild(row);
@@ -937,6 +1234,9 @@
       totalUsdEl.textContent = `$${totalUsd}`;
       if (stickyTotalBs) stickyTotalBs.textContent = `Bs. ${totalBs.toFixed(2)}`;
       if (stickyTotalUsd) stickyTotalUsd.textContent = `≈ $${totalUsd} USD`;
+      if (btnPay) {
+        btnPay.innerHTML = `Comprar (${totalItems}) · Bs. ${totalBs.toFixed(2)} <span>Continuar a datos de facturación ➔</span>`;
+      }
       actualizarEstadoPago();
     }
 
