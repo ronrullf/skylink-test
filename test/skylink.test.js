@@ -234,3 +234,48 @@ test('autopago integrates continuous barcode-detector with local ZXing-WASM with
   assert.match(autopagoHtml, /wakeLock/);
   assert.match(autopagoHtml, /visibilitychange/);
 });
+
+test('autopago allows scanning to register custom products and saving them with persistent recognition', async () => {
+  const autopagoHtml = fs.readFileSync(require.resolve('../public/autopago.html'), 'utf8');
+
+  // 1. UI elements for registration mode and modal
+  assert.match(autopagoHtml, /id="btnRegisterMode"/);
+  assert.match(autopagoHtml, /id="modalRegistrarProducto"/);
+  assert.match(autopagoHtml, /id="regProductCode"/);
+  assert.match(autopagoHtml, /id="regProductName"/);
+  assert.match(autopagoHtml, /id="regProductPrice"/);
+
+  // 2. Logic functions exist
+  assert.match(autopagoHtml, /function toggleModoRegistro/);
+  assert.match(autopagoHtml, /function abrirModalRegistro/);
+  assert.match(autopagoHtml, /function guardarProductoEscaneado/);
+  assert.match(autopagoHtml, /skypay_temp_products/);
+
+  // 3. API endpoint supports custom code creation and updates
+  delete require.cache[require.resolve('../api/index')];
+  const handler = require('../api/index');
+  async function invoke(url, body, method = 'POST') {
+    let status, data;
+    await handler({ url, method, body, headers: { host: 'localhost' } }, {
+      setHeader() {}, writeHead(code) { status = code; }, end(text) { data = JSON.parse(text); }
+    });
+    return { status, data };
+  }
+
+  const customProd = {
+    name: 'Galleta de Chocolate Test',
+    code: '999888777123',
+    priceBs: 24.50,
+    category: 'Snacks'
+  };
+
+  const resCreated = await invoke('/api/products', customProd, 'POST');
+  assert.equal(resCreated.status, 201);
+  assert.equal(resCreated.data.data.name, 'Galleta de Chocolate Test');
+  assert.equal(resCreated.data.data.code, '999888777123');
+
+  // Updating the same code
+  const resUpdated = await invoke('/api/products', { ...customProd, priceBs: 25.00 }, 'POST');
+  assert.equal(resUpdated.status, 200);
+  assert.equal(resUpdated.data.data.priceBs, 25.00);
+});

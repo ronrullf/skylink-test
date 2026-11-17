@@ -268,6 +268,200 @@
       font-size: 11px;
       margin: 0;
     }
+
+    /* Estilos del Modo Registro y Modal de Producto */
+    .btn-register-mode {
+      background: #0284c7;
+      color: white;
+      border: 1px solid #0369a1;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s ease;
+    }
+    .btn-register-mode:hover {
+      background: #0369a1;
+    }
+    .btn-register-mode.active {
+      background: #f59e0b;
+      color: #0f172a;
+      border-color: #d97706;
+      animation: pulseRecord 1.5s infinite;
+    }
+    @keyframes pulseRecord {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+      50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+    }
+    .mode-register-banner {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      background: rgba(245, 158, 11, 0.95);
+      color: #0f172a;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 5;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      backdrop-filter: blur(4px);
+    }
+    .btn-close-mode {
+      background: #0f172a;
+      color: white;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .unreg-prompt-box {
+      margin-top: 10px;
+      background: #fffbeb;
+      border: 1.5px solid #fde68a;
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      animation: fadeIn 0.2s ease;
+    }
+    .btn-register-quick {
+      background: #d97706;
+      color: white;
+      border: none;
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .btn-register-quick:hover {
+      background: #b45309;
+    }
+    .kiosk-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+    .kiosk-modal-card {
+      background: #ffffff;
+      border-radius: 16px;
+      max-width: 480px;
+      width: 100%;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      border: 1px solid #e2e8f0;
+      animation: modalSlideUp 0.2s ease-out;
+    }
+    @keyframes modalSlideUp {
+      from { transform: translateY(16px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .kiosk-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .btn-modal-close {
+      background: #f1f5f9;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 14px;
+      cursor: pointer;
+      color: #64748b;
+      display: grid;
+      place-items: center;
+    }
+    .btn-modal-close:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+    .reg-field {
+      margin-bottom: 14px;
+    }
+    .reg-field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 5px;
+    }
+    .reg-code-box {
+      display: flex;
+      align-items: center;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 4px 10px;
+      gap: 8px;
+    }
+    .reg-code-input {
+      border: none !important;
+      background: transparent !important;
+      font-family: monospace;
+      font-weight: 800;
+      color: #0284c7 !important;
+      font-size: 14px;
+      flex: 1;
+      padding: 6px 0 !important;
+      outline: none;
+    }
+    .reg-badge-auto {
+      background: #e0f2fe;
+      color: #0369a1;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .modal-actions-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 18px;
+      justify-content: flex-end;
+    }
+    .btn-save-prod {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+    .btn-save-prod:hover {
+      background: #059669;
+    }
   </style>
 </head>
 <body class="kiosk-body">
@@ -311,6 +505,9 @@
             <span class="scanner-live-badge active" id="cameraLiveBadge">Iniciando escáner continuo...</span>
           </div>
           <div class="scanner-actions">
+            <button type="button" class="btn-register-mode" id="btnRegisterMode" onclick="toggleModoRegistro()" title="Apunta la cámara para registrar un nuevo producto">
+              ➕ Registrar Producto
+            </button>
             <button type="button" class="btn-torch" id="btnTorch" style="display:none;" title="Encender/apagar linterna" onclick="toggleTorch()">
               🔦 Linterna
             </button>
@@ -321,6 +518,12 @@
         </div>
 
         <div class="camera-viewport-container" id="cameraViewport">
+          <!-- Banner interactivo de Modo Registro -->
+          <div class="mode-register-banner" id="modeRegisterBanner" style="display:none;">
+            <span>🎯 <strong>MODO REGISTRO:</strong> Escanea el código o QR para capturarlo</span>
+            <button type="button" class="btn-close-mode" onclick="toggleModoRegistro(false)">✕ Salir</button>
+          </div>
+
           <video id="cameraVideo" autoplay playsinline muted></video>
           <div class="scanner-guide-overlay">
             <div class="scanner-aim-frame" id="scannerAimFrame">
@@ -338,6 +541,9 @@
           <input type="text" id="barcodeInput" aria-label="Código de barras" placeholder="Escribe o escanea con pistola/cámara (ej: 7591001)...">
           <button type="button" class="btn-add-code" onclick="procesarCodigoManual()">Añadir al Carrito</button>
         </div>
+
+        <!-- Contenedor dinámico si se escanea un código no registrado -->
+        <div id="unregPromptBox" style="display:none;"></div>
 
         <!-- Chips de prueba rápida -->
         <div class="scanner-quick-chips">
@@ -569,6 +775,21 @@
         if (resProducts && resProducts.data && resProducts.data.length > 0) {
           PRODUCTOS = resProducts.data;
         }
+
+        // Cargar y combinar productos temporales registrados por el usuario
+        try {
+          const localSaved = JSON.parse(localStorage.getItem('skypay_temp_products') || '[]');
+          if (Array.isArray(localSaved) && localSaved.length > 0) {
+            localSaved.forEach(lp => {
+              const exIdx = PRODUCTOS.findIndex(p => p.code === lp.code);
+              if (exIdx !== -1) {
+                PRODUCTOS[exIdx] = { ...PRODUCTOS[exIdx], ...lp };
+              } else {
+                PRODUCTOS.unshift(lp);
+              }
+            });
+          }
+        } catch (err) {}
 
         renderCatalogo();
         actualizarCarrito();
@@ -805,6 +1026,155 @@
       });
     }
 
+    // ========================================================
+    // REGISTRO DE PRODUCTOS POR ESCANEO (BARRAS / QR)
+    // ========================================================
+    let modoRegistro = false;
+    let isModalOpen = false;
+
+    function toggleModoRegistro(forceState) {
+      modoRegistro = typeof forceState === 'boolean' ? forceState : !modoRegistro;
+      const btn = document.getElementById('btnRegisterMode');
+      const banner = document.getElementById('modeRegisterBanner');
+      const aim = document.getElementById('scannerAimFrame');
+
+      if (modoRegistro) {
+        if (btn) {
+          btn.classList.add('active');
+          btn.innerHTML = '🎯 Cancelar Registro';
+        }
+        if (banner) banner.style.display = 'flex';
+        if (aim) aim.style.borderColor = '#f59e0b';
+        showScannerToast('🎯 Apunta la cámara al código que deseas registrar');
+        playBeep(880, 0.08);
+      } else {
+        if (btn) {
+          btn.classList.remove('active');
+          btn.innerHTML = '➕ Registrar Producto';
+        }
+        if (banner) banner.style.display = 'none';
+        if (aim) aim.style.borderColor = '';
+      }
+    }
+
+    function abrirModalRegistro(codigo) {
+      isModalOpen = true;
+      toggleModoRegistro(false);
+      const modal = document.getElementById('modalRegistrarProducto');
+      const inputCode = document.getElementById('regProductCode');
+      const inputName = document.getElementById('regProductName');
+      const inputPrice = document.getElementById('regProductPrice');
+      const unregBox = document.getElementById('unregPromptBox');
+      if (unregBox) unregBox.style.display = 'none';
+
+      inputCode.value = codigo;
+      inputName.value = '';
+      inputPrice.value = '24.00';
+      actualizarRefUsdRegistro();
+
+      modal.style.display = 'grid';
+      setTimeout(() => inputName.focus(), 150);
+    }
+
+    function cerrarModalRegistro() {
+      const modal = document.getElementById('modalRegistrarProducto');
+      if (modal) modal.style.display = 'none';
+      isModalOpen = false;
+    }
+
+    function actualizarRefUsdRegistro() {
+      const priceInput = document.getElementById('regProductPrice');
+      const refText = document.getElementById('regPriceUsdRef');
+      if (!priceInput || !refText) return;
+      const val = parseFloat(priceInput.value) || 0;
+      const usd = bcvRate > 0 ? (val / bcvRate).toFixed(2) : '0.00';
+      refText.textContent = `≈ $${usd} USD (Tasa BCV: Bs. ${bcvRate.toFixed(2)})`;
+    }
+
+    function mostrarPromptNoRegistrado(codigo) {
+      const box = document.getElementById('unregPromptBox');
+      if (!box) return;
+      box.style.display = 'flex';
+      box.className = 'unreg-prompt-box';
+      box.innerHTML = `
+        <div style="font-size:12px; color:#92400e;">
+          <strong>⚠️ Código no registrado:</strong> <code style="background:#fef3c7; padding:2px 6px; border-radius:4px; font-weight:700;">${codigo}</code>
+          <div style="margin-top:2px;">¿Deseas agregarlo a la tienda ahora?</div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button type="button" class="btn-register-quick" onclick="abrirModalRegistro('${codigo}')">➕ Registrar este código</button>
+          <button type="button" class="btn-modal-close" style="width:24px; height:24px; font-size:11px;" onclick="document.getElementById('unregPromptBox').style.display='none'">✕</button>
+        </div>
+      `;
+    }
+
+    async function guardarProductoEscaneado(e) {
+      if (e) e.preventDefault();
+      const code = document.getElementById('regProductCode').value.trim();
+      const name = document.getElementById('regProductName').value.trim();
+      const priceBs = parseFloat(document.getElementById('regProductPrice').value);
+      const category = document.getElementById('regProductCategory').value || 'Víveres';
+
+      if (!code || !name || isNaN(priceBs) || priceBs <= 0) {
+        showError('Por favor completa el nombre y un precio válido.');
+        return;
+      }
+
+      const iconMap = {
+        'Víveres': '🌾',
+        'Snacks': '🍪',
+        'Bebidas': '☕',
+        'Lácteos': '🧈',
+        'Salsas': '🍅',
+        'Higiene': '🧼',
+        'General': '📦'
+      };
+      const icon = iconMap[category] || '📦';
+
+      const nuevoProducto = {
+        id: Date.now(),
+        name,
+        code,
+        priceBs: Number(priceBs.toFixed(2)),
+        category,
+        icon,
+        custom: true
+      };
+
+      // 1. Agregar o actualizar en memoria inmediata del kiosco
+      const idx = PRODUCTOS.findIndex(p => p.code === code);
+      if (idx !== -1) {
+        PRODUCTOS[idx] = { ...PRODUCTOS[idx], ...nuevoProducto };
+      } else {
+        PRODUCTOS.unshift(nuevoProducto);
+      }
+
+      // 2. Persistir en localStorage temporal del dispositivo
+      try {
+        let saved = JSON.parse(localStorage.getItem('skypay_temp_products') || '[]');
+        saved = saved.filter(p => p.code !== code);
+        saved.unshift(nuevoProducto);
+        localStorage.setItem('skypay_temp_products', JSON.stringify(saved));
+      } catch (err) {}
+
+      // 3. Sincronizar en background con la API (/api/products)
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nuevoProducto)
+      }).catch(() => {});
+
+      // 4. Cerrar modal y dar feedback
+      cerrarModalRegistro();
+      renderCatalogo();
+      playBeep(1200, 0.12);
+      showScannerToast(`✓ Registrado: ${name} (Bs. ${nuevoProducto.priceBs.toFixed(2)})`);
+
+      const unregBox = document.getElementById('unregPromptBox');
+      if (unregBox) unregBox.style.display = 'none';
+      showError('');
+    }
+
     // Antiduplicado y procesamiento de lectura
     let lastScannedCode = '';
     let lastScannedTime = 0;
@@ -821,18 +1191,33 @@
       lastScannedCode = codigo;
       lastScannedTime = now;
 
+      // Paso 1 & 2: Si el Modo Registro está activo, capturar el código y abrir el modal
+      if (modoRegistro) {
+        playBeep(880, 0.08);
+        abrirModalRegistro(codigo);
+        return;
+      }
+
+      if (isModalOpen) {
+        // No interferir si el modal de registro ya está abierto
+        return;
+      }
+
       const tStart = performance.now();
       const prod = buscarProductoPorCodigo(codigo);
       if (prod) {
+        // Paso 3: Código reconocido con éxito, da nombre, precio y agrega al carrito
         feedbackLectura(prod);
-        // REQUISITO CRÍTICO: El escáner NO se cierra, NO abre modal ni recarga
         agregarProducto(prod);
         const pipelineTime = (performance.now() - tStart).toFixed(1);
         console.log(`[AutoPago Scanner] ✓ Agregado: ${prod.name} (${codigo}) | Detección: ${elapsedMs || 'directo'}ms | Pipeline UI: ${pipelineTime}ms`);
+        const unregBox = document.getElementById('unregPromptBox');
+        if (unregBox) unregBox.style.display = 'none';
       } else {
         playBeep(440, 0.12);
         showError("Código no registrado en catálogo: " + codigo);
         showScannerToast("⚠️ No encontrado: " + codigo);
+        mostrarPromptNoRegistrado(codigo);
       }
     }
 
@@ -1125,6 +1510,69 @@
     <button class="btn-sticky-pay" id="btnStickyPay" disabled onclick="iniciarCobro()">
       Comprar ➔
     </button>
+  </div>
+  <!-- Modal para Registrar Nuevo Producto Escaneado -->
+  <div class="kiosk-modal-overlay" id="modalRegistrarProducto" style="display:none;">
+    <div class="kiosk-modal-card">
+      <div class="kiosk-modal-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:26px;">🏷️</span>
+          <div>
+            <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">Registrar Producto Escaneado</h3>
+            <p style="margin:3px 0 0; font-size:12px; color:#64748b;">Añádelo para que el kiosco lo reconozca al volver a escanearlo.</p>
+          </div>
+        </div>
+        <button type="button" class="btn-modal-close" onclick="cerrarModalRegistro()" title="Cerrar">✕</button>
+      </div>
+
+      <form id="formRegistrarProducto" onsubmit="guardarProductoEscaneado(event)">
+        <div class="reg-field">
+          <label>Código Capturado (QR / Barras):</label>
+          <div class="reg-code-box">
+            <span style="font-size:16px;">🔍</span>
+            <input type="text" id="regProductCode" readonly required class="reg-code-input" title="Código detectado por el escáner">
+            <span class="reg-badge-auto">Detectado</span>
+          </div>
+        </div>
+
+        <div class="reg-field">
+          <label for="regProductName">Nombre del Producto: <span style="color:#ef4444;">*</span></label>
+          <input type="text" id="regProductName" placeholder="Ej: Galleta Oreo, Refresco 1.5L..." required autocomplete="off" class="form-input">
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+          <div class="reg-field">
+            <label for="regProductPrice">Precio en Bolívares (Bs): <span style="color:#ef4444;">*</span></label>
+            <input type="number" id="regProductPrice" step="0.25" min="0.5" placeholder="Ej: 24.50" required class="form-input" oninput="actualizarRefUsdRegistro()">
+            <small id="regPriceUsdRef" style="color:#64748b; font-size:11px; margin-top:3px; display:block;">≈ $0.00 USD</small>
+          </div>
+
+          <div class="reg-field">
+            <label for="regProductCategory">Categoría:</label>
+            <select id="regProductCategory" class="form-input">
+              <option value="Víveres">🌾 Víveres</option>
+              <option value="Snacks">🍪 Snacks</option>
+              <option value="Bebidas">☕ Bebidas</option>
+              <option value="Lácteos">🧈 Lácteos</option>
+              <option value="Salsas">🍅 Salsas</option>
+              <option value="Higiene">🧼 Higiene</option>
+              <option value="General">📦 General</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; margin-top:6px; font-size:11px; color:#64748b;">
+          💡 <strong>Funcionamiento:</strong> Al guardar, el código queda registrado. Cuando lo pases frente a la cámara, el kiosco lo reconocerá al instante con su nombre y precio.
+        </div>
+
+        <div class="modal-actions-row">
+          <button type="button" class="btn-cancel" onclick="cerrarModalRegistro()">Cancelar</button>
+          <button type="submit" class="btn-save-prod" id="btnGuardarProd">
+            💾 Guardar y Reconocer
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </body>
 </html>

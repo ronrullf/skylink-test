@@ -289,10 +289,24 @@ async function handleApi(req, res) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, message: 'El nombre del producto es obligatorio.' }));
       }
+      const code = String(payload.code || ('759' + Math.floor(1000 + Math.random() * 9000))).trim();
+      const existingIdx = CATALOGO_PRODUCTOS.findIndex(p => p.code === code);
+      if (existingIdx !== -1) {
+        CATALOGO_PRODUCTOS[existingIdx] = {
+          ...CATALOGO_PRODUCTOS[existingIdx],
+          name,
+          priceBs: Number(priceBs.toFixed(2)),
+          category: payload.category || CATALOGO_PRODUCTOS[existingIdx].category || 'Víveres',
+          icon: payload.icon || CATALOGO_PRODUCTOS[existingIdx].icon || '📦',
+          keywords: [name.toLowerCase()]
+        };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, data: CATALOGO_PRODUCTOS[existingIdx], updated: true }));
+      }
       const newProduct = {
         id: Date.now(),
         name,
-        code: payload.code || ('759' + Math.floor(1000 + Math.random() * 9000)),
+        code,
         priceBs: Number(priceBs.toFixed(2)),
         category: payload.category || 'Víveres',
         icon: payload.icon || '📦',
