@@ -487,3 +487,37 @@ test('strict payment verification and iPad auto-zoom: invoice blocked unless pai
   assert.match(autopagoHtml, /btnZoom1/);
   assert.match(autopagoHtml, /btnZoom2/);
 });
+
+test('DolarAPI integration, product prices 18, 19, 20, 24 Bs and random default product pricing', async t => {
+  delete require.cache[require.resolve('../api/index')];
+  const handler = require('../api/index');
+  async function invoke(url, body, method = 'GET') {
+    let status, data;
+    await handler({ url, method, body, headers: { host: 'localhost' } }, {
+      setHeader() {}, writeHead(code) { status = code; }, end(text) { data = JSON.parse(text); }
+    });
+    return { status, data };
+  }
+
+  // 1. DolarAPI endpoint /api/bcv-rate
+  const bcvRes = await invoke('/api/bcv-rate?sync=1');
+  assert.equal(bcvRes.status, 200);
+  assert.equal(bcvRes.data.success, true);
+  assert.ok(bcvRes.data.rate > 0);
+  assert.match(bcvRes.data.provider, /DolarAPI/i);
+  assert.equal(bcvRes.data.source, 'https://ve.dolarapi.com/v1/dolares/oficial');
+
+  // 2. Catalogo includes exact 18, 19, 20 and 24 Bs prices
+  const prodsRes = await invoke('/api/products');
+  assert.equal(prodsRes.status, 200);
+  const prices = prodsRes.data.data.map(p => p.priceBs);
+  assert.ok(prices.includes(18), 'Must include product with price 18 Bs');
+  assert.ok(prices.includes(19), 'Must include product with price 19 Bs');
+  assert.ok(prices.includes(20), 'Must include product with price 20 Bs');
+  assert.ok(prices.includes(24), 'Must include product with price 24 Bs');
+
+  // 3. Adding a product with omitted price assigns random default price
+  const createdNoPrice = await invoke('/api/products', { name: 'Producto Aleatorio Test' }, 'POST');
+  assert.equal(createdNoPrice.status, 201);
+  assert.ok(createdNoPrice.data.data.priceBs >= 15 && createdNoPrice.data.data.priceBs <= 40);
+});

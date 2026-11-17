@@ -915,17 +915,17 @@
   </footer>
 
   <script>
-    // Catálogo por defecto en el rango de 20 a 25 Bs
+    // Catálogo por defecto (incluye productos con precios exactos de 18, 19, 20 y 24 Bs)
     let PRODUCTOS = [
       { id: 1, name: "Harina PAN 1kg", code: "7591001", priceBs: 25.00, category: "Víveres", icon: "🌽" },
       { id: 2, name: "Café Molido 100g", code: "7591002", priceBs: 24.50, category: "Bebidas", icon: "☕" },
       { id: 3, name: "Arroz Blanco 1kg", code: "7591473005492", priceBs: 23.50, category: "Víveres", icon: "🍚" },
-      { id: 4, name: "Pasta Spaghetti 500g", code: "7591003", priceBs: 21.00, category: "Víveres", icon: "🍝" },
+      { id: 4, name: "Pasta Spaghetti 500g", code: "7591003", priceBs: 19.00, category: "Víveres", icon: "🍝" },
       { id: 5, name: "Azúcar Refinada 1kg", code: "7591005", priceBs: 22.00, category: "Víveres", icon: "🧂" },
       { id: 6, name: "Aceite Vegetal 500ml", code: "7591006", priceBs: 25.00, category: "Víveres", icon: "🍳" },
       { id: 7, name: "Margarina con Sal 250g", code: "7591007", priceBs: 23.00, category: "Lácteos", icon: "🧈" },
       { id: 8, name: "Leche en Polvo 125g", code: "7591008", priceBs: 24.00, category: "Lácteos", icon: "🥛" },
-      { id: 9, name: "Galletas de Vainilla 150g", code: "7591009", priceBs: 21.50, category: "Snacks", icon: "🍪" },
+      { id: 9, name: "Galletas de Vainilla 150g", code: "7591009", priceBs: 18.00, category: "Snacks", icon: "🍪" },
       { id: 10, name: "Salsa de Tomate 397g", code: "7591010", priceBs: 22.50, category: "Salsas", icon: "🍅" },
       { id: 11, name: "Mayonesa Tradicional 175g", code: "7591011", priceBs: 24.00, category: "Salsas", icon: "🥣" },
       { id: 12, name: "Refresco Lata 355ml", code: "7591012", priceBs: 20.00, category: "Bebidas", icon: "🥤" },
@@ -1600,7 +1600,9 @@
 
       inputCode.value = codigo;
       inputName.value = '';
-      inputPrice.value = '24.00';
+      // Precio predeterminado aleatorio (entre 18 y 33 Bs con centavos .00 o .50)
+      const randomDefaultPrice = (Math.floor(Math.random() * 15 + 18) + (Math.random() < 0.5 ? 0 : 0.5)).toFixed(2);
+      inputPrice.value = randomDefaultPrice;
       actualizarRefUsdRegistro();
 
       modal.style.display = 'grid';

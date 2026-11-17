@@ -10,8 +10,51 @@ const { normalizePhone, sendInvoiceWhatsApp } = require('../lib/whatsapp');
 const SKYLINK_BASE_URL = process.env.SKYLINK_BASE_URL || 'https://dev-axis-payment.valinkgroup.com';
 const SKYLINK_COMMERCE_CODE = process.env.SKYLINK_COMMERCE_CODE || '754947900700';
 
-// Tasa oficial referencial BCV (Bolívares por Dólar)
+// Tasa oficial referencial BCV (Bolívares por Dólar) - Integración con DolarAPI Venezuela (https://dolarapi.com/docs/venezuela/)
 let bcvRate = 37.50;
+let bcvMetadata = {
+  provider: 'DolarAPI Venezuela (BCV Oficial)',
+  sourceUrl: 'https://ve.dolarapi.com/v1/dolares/oficial',
+  lastFetchedAt: null,
+  fechaActualizacion: null
+};
+
+async function fetchLiveBcvRate(force = false) {
+  const CACHE_MS = 10 * 60 * 1000; // 10 minutos de caché
+  const now = Date.now();
+  if (!force && bcvMetadata.lastFetchedAt && (now - bcvMetadata.lastFetchedAt < CACHE_MS)) {
+    return bcvRate;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4500);
+    const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial', {
+      headers: { 'Accept': 'application/json' },
+      signal: controller.signal
+    }).finally(() => clearTimeout(timeout));
+
+    if (res.ok) {
+      const data = await res.json();
+      const liveRate = Number(data.promedio || data.price || data.valor);
+      if (Number.isFinite(liveRate) && liveRate > 0) {
+        bcvRate = Number(liveRate.toFixed(4));
+        bcvMetadata.lastFetchedAt = now;
+        bcvMetadata.fechaActualizacion = data.fechaActualizacion || new Date().toISOString();
+        console.log(`[DolarAPI] Tasa oficial BCV actualizada en vivo: Bs. ${bcvRate}/$ (Actualización: ${bcvMetadata.fechaActualizacion})`);
+      }
+    }
+  } catch (err) {
+    console.warn(`[DolarAPI] No se pudo obtener tasa en vivo (${err.message}). Utilizando tasa configurada: Bs. ${bcvRate}`);
+  }
+  return bcvRate;
+}
+
+// En ejecución en vivo, sincronizar al arrancar
+const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.NODE_TEST_CONTEXT);
+if (!isTestEnv) {
+  fetchLiveBcvRate().catch(() => {});
+}
 
 // Configuración de la tienda y webhooks
 let storeSettings = {
@@ -56,17 +99,17 @@ async function refreshPaymentStatus(record) {
   return record;
 }
 
-// Catálogo de productos oficial (Todos en el rango de 20 a 25 Bs)
+// Catálogo de productos oficial (incluye productos con precios exactos de 18, 19, 20 y 24 Bs)
 let CATALOGO_PRODUCTOS = [
   { id: 1, name: "Harina PAN 1kg", code: "7591001", priceBs: 25.00, category: "Víveres", icon: "🌽", keywords: ["harina pan", "harina", "pan"] },
   { id: 2, name: "Café Molido 100g", code: "7591002", priceBs: 24.50, category: "Bebidas", icon: "☕", keywords: ["cafe", "café", "molido"] },
   { id: 3, name: "Arroz Blanco 1kg", code: "7591473005492", priceBs: 23.50, category: "Víveres", icon: "🍚", keywords: ["arroz blanco", "arroz"] },
-  { id: 4, name: "Pasta Spaghetti 500g", code: "7591003", priceBs: 21.00, category: "Víveres", icon: "🍝", keywords: ["pasta", "spaghetti", "fideos"] },
+  { id: 4, name: "Pasta Spaghetti 500g", code: "7591003", priceBs: 19.00, category: "Víveres", icon: "🍝", keywords: ["pasta", "spaghetti", "fideos"] },
   { id: 5, name: "Azúcar Refinada 1kg", code: "7591005", priceBs: 22.00, category: "Víveres", icon: "🧂", keywords: ["azucar", "azúcar"] },
   { id: 6, name: "Aceite Vegetal 500ml", code: "7591006", priceBs: 25.00, category: "Víveres", icon: "🍳", keywords: ["aceite vegetal", "aceite"] },
   { id: 7, name: "Margarina con Sal 250g", code: "7591007", priceBs: 23.00, category: "Lácteos", icon: "🧈", keywords: ["margarina", "mavesa", "mantequilla"] },
   { id: 8, name: "Leche en Polvo 125g", code: "7591008", priceBs: 24.00, category: "Lácteos", icon: "🥛", keywords: ["leche", "leche en polvo"] },
-  { id: 9, name: "Galletas de Vainilla 150g", code: "7591009", priceBs: 21.50, category: "Snacks", icon: "🍪", keywords: ["galletas", "maria", "vainilla"] },
+  { id: 9, name: "Galletas de Vainilla 150g", code: "7591009", priceBs: 18.00, category: "Snacks", icon: "🍪", keywords: ["galletas", "maria", "vainilla"] },
   { id: 10, name: "Salsa de Tomate 397g", code: "7591010", priceBs: 22.50, category: "Salsas", icon: "🍅", keywords: ["salsa de tomate", "ketchup"] },
   { id: 11, name: "Mayonesa Tradicional 175g", code: "7591011", priceBs: 24.00, category: "Salsas", icon: "🥣", keywords: ["mayonesa", "mavesa"] },
   { id: 12, name: "Refresco Lata 355ml", code: "7591012", priceBs: 20.00, category: "Bebidas", icon: "🥤", keywords: ["refresco", "soda", "lata"] },
@@ -233,11 +276,21 @@ async function handleApi(req, res) {
     }
 
     // ==========================================
-    // 1. TASA OFICIAL BCV
+    // 1. TASA OFICIAL BCV (DolarAPI Venezuela)
     // ==========================================
     if (pathname === '/api/bcv-rate' && req.method === 'GET') {
+      if (!isTestEnv || parsedUrl.searchParams.get('sync') === '1') {
+        try { await fetchLiveBcvRate(parsedUrl.searchParams.get('force') === '1'); } catch (e) {}
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, rate: bcvRate, provider: 'BCV Oficial (Configurado)' }));
+      return res.end(JSON.stringify({
+        success: true,
+        rate: bcvRate,
+        provider: bcvMetadata.provider,
+        source: bcvMetadata.sourceUrl,
+        lastSync: bcvMetadata.lastFetchedAt ? new Date(bcvMetadata.lastFetchedAt).toISOString() : null,
+        fechaActualizacion: bcvMetadata.fechaActualizacion
+      }));
     }
     if (pathname === '/api/bcv-rate' && req.method === 'POST') {
       const payload = await getRequestBody(req);
@@ -285,7 +338,9 @@ async function handleApi(req, res) {
     if (pathname === '/api/products' && req.method === 'POST') {
       const payload = await getRequestBody(req);
       const name = (payload.name || '').trim();
-      const priceBs = Number(payload.priceBs || payload.price_bs || 25);
+      // Precio predeterminado aleatorio si no se especifica (ej: entre 18 y 33 Bs)
+      const randomDefault = Number((Math.floor(Math.random() * 15 + 18) + (Math.random() < 0.5 ? 0 : 0.5)).toFixed(2));
+      const priceBs = Number(payload.priceBs || payload.price_bs || randomDefault);
       if (!name) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, message: 'El nombre del producto es obligatorio.' }));
