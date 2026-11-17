@@ -89,7 +89,7 @@
     <section class="card" id="invoiceStep">
       <p class="eyebrow">Paso 2 de 4</p>
       <h1>Datos para tu factura</h1>
-      <p class="intro">Sólo necesitamos nombre y cédula. La conexión con Skylink comenzará al continuar.</p>
+      <p class="intro">Ingresa tu nombre y número de WhatsApp. Al confirmarse el pago se te enviará la factura automáticamente.</p>
 
       <div class="summary">
         <div><small id="itemCount">0 productos</small><span>Total de la compra</span></div>
@@ -98,14 +98,18 @@
 
       <form id="invoiceForm" novalidate>
         <div class="field">
-          <label for="invoiceName">Nombre y apellido</label>
+          <label for="invoiceName">Nombre y apellido *</label>
           <input id="invoiceName" name="invoiceName" autocomplete="name" maxlength="80" placeholder="Ej: María Pérez" required>
         </div>
         <div class="field">
-          <label for="invoiceId">Cédula</label>
-          <input id="invoiceId" name="invoiceId" maxlength="12" placeholder="Ej: V-12345678" required>
+          <label for="invoicePhone">Número de WhatsApp (para enviarte tu factura) *</label>
+          <input id="invoicePhone" name="invoicePhone" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="15" placeholder="Solo números (ej: 04121234567)" required>
+          <p class="hint">Al pagar, tu factura se descargará y se enviará por WhatsApp a este número.</p>
         </div>
-        <p class="hint">Estos datos aparecerán en la factura. No solicitamos dirección ni correo.</p>
+        <div class="field">
+          <label for="invoiceId">Cédula o RIF <small style="color:#64748b; font-weight:normal;">(Opcional)</small></label>
+          <input id="invoiceId" name="invoiceId" maxlength="12" placeholder="Ej: V-12345678 (Opcional)">
+        </div>
         <button class="primary" id="continueButton" type="submit">Continuar al pago</button>
         <p class="message error" id="formError" role="alert" hidden></p>
       </form>
@@ -157,19 +161,40 @@
       document.getElementById('paymentTotal').textContent = money(checkout.totalBs);
     }
 
-    function invoiceIsValid(name, idNumber) {
-      return name.length >= 2 && /^(?:[VE]-?)?\d{5,10}$/i.test(idNumber);
+    // Restricción estricta de solo números en el campo de WhatsApp
+    const phoneInput = document.getElementById('invoicePhone');
+    if (phoneInput) {
+      phoneInput.addEventListener('input', e => {
+        e.target.value = e.target.value.replace(/\D/g, '');
+      });
+      phoneInput.addEventListener('keypress', e => {
+        if (!/\d/.test(e.key)) e.preventDefault();
+      });
+    }
+
+    function invoiceIsValid(name, phone, idNumber) {
+      const cleanPhone = (phone || '').replace(/\D/g, '');
+      const nameValid = name.length >= 2;
+      const phoneValid = cleanPhone.length >= 10 && cleanPhone.length <= 15;
+      const idValid = !idNumber || /^(?:[VE]-?)?\d{5,10}$/i.test(idNumber);
+      return nameValid && phoneValid && idValid;
     }
 
     document.getElementById('invoiceForm').addEventListener('submit', async event => {
       event.preventDefault();
       const name = document.getElementById('invoiceName').value.trim();
-      const idNumber = document.getElementById('invoiceId').value.trim().toUpperCase();
+      const phone = (document.getElementById('invoicePhone').value || '').replace(/\D/g, '');
+      const idNumber = document.getElementById('invoiceId').value.trim().toUpperCase() || 'V-00000000';
       const errorBox = document.getElementById('formError');
       const button = document.getElementById('continueButton');
 
-      if (!invoiceIsValid(name, idNumber)) {
-        setError(errorBox, 'Ingresa un nombre y una cédula válidos para continuar.');
+      if (name.length < 2) {
+        setError(errorBox, 'Ingresa tu nombre y apellido para la factura.');
+        return;
+      }
+
+      if (phone.length < 10 || phone.length > 15) {
+        setError(errorBox, 'Ingresa un número de WhatsApp válido (solo números, ej: 04121234567).');
         return;
       }
 
@@ -186,6 +211,8 @@
             description: `Kiosco (${checkout.items.length} productos)`,
             items: checkout.items,
             invoiceName: name,
+            invoicePhone: phone,
+            clientPhone: phone,
             invoiceId: idNumber
           })
         });
@@ -235,10 +262,10 @@
 
         if (json.data.status === 'paid') {
           clearInterval(pollingTimer);
-          document.getElementById('paymentStatus').innerHTML = '✓ Pago confirmado. Preparando tu factura…';
+          document.getElementById('paymentStatus').innerHTML = '✓ ¡Pago confirmado! Descargando tu factura y enviando por WhatsApp…';
           sessionStorage.removeItem('skypayCheckout');
           window.setTimeout(() => {
-            window.location.href = `/factura?order_id=${encodeURIComponent(id)}`;
+            window.location.href = `/factura?order_id=${encodeURIComponent(id)}&auto_download=1`;
           }, 650);
         } else if (json.data.status === 'failed') {
           clearInterval(pollingTimer);

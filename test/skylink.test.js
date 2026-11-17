@@ -312,3 +312,93 @@ test('autopago phone layout: scanner and cart only, item/bulk deletion, and noti
   assert.match(autopagoHtml, /scanned-empty-state/);
   assert.match(autopagoHtml, /id="productsGrid"\s+style="display:none;"/);
 });
+
+test('flow: mandatory name and numbers-only phone, automatic invoice PDF download and Green API WhatsApp dispatch', async t => {
+  const datosFacturaHtml = fs.readFileSync(require.resolve('../public/datos-factura.html'), 'utf8');
+  const facturaHtml = fs.readFileSync(require.resolve('../public/factura.html'), 'utf8');
+  const whatsapp = require('../lib/whatsapp');
+
+  // 1. datos-factura.html form requirements: name and phone strictly required, phone is numeric only
+  assert.match(datosFacturaHtml, /id="invoiceName"/);
+  assert.match(datosFacturaHtml, /id="invoicePhone"/);
+  assert.match(datosFacturaHtml, /inputmode="numeric"/);
+  assert.match(datosFacturaHtml, /pattern="\[0-9\]\*"/);
+  assert.match(datosFacturaHtml, /replace\(\/\\D\/g,\s*''\)/);
+  assert.match(datosFacturaHtml, /auto_download=1/);
+
+  // 2. factura.html: only downloads and displays when payment is confirmed, generates PDF blob
+  assert.match(facturaHtml, /currentOrder\.status\s*!==\s*'paid'/);
+  assert.match(facturaHtml, /descargarFacturaPDF/);
+  assert.match(facturaHtml, /buildPdfInvoiceBytes/);
+  assert.match(facturaHtml, /application\/pdf/);
+  assert.match(facturaHtml, /id="whatsappStatusCard"/);
+  assert.match(facturaHtml, /reenviarFacturaWhatsApp/);
+
+  // 3. WhatsApp module: number normalization and message builder
+  assert.equal(whatsapp.normalizePhone('04121234567'), '584121234567');
+  assert.equal(whatsapp.normalizePhone('0414-987.6543'), '584149876543');
+  assert.equal(whatsapp.normalizePhone('+58 (424) 111-2233'), '584241112233');
+
+  const sampleOrder = {
+    orderId: 'AUTO-TEST1',
+    clientName: 'Pedro Perez',
+    clientPhone: '04121234567',
+    amountBs: 50.00,
+    amount: 1.33,
+    reference: 'REF-BANK-100'
+  };
+  const msg = whatsapp.buildInvoiceMessage(sampleOrder, 'https://skylink-test.vercel.app');
+  assert.match(msg, /Pedro Perez/);
+  assert.match(msg, /AUTO-TEST1/);
+  assert.match(msg, /Bs\. 50\.00/);
+  assert.match(msg, /factura\?order_id=AUTO-TEST1/);
+
+  // 4. Backend validation: /api/create-payment enforces name + numeric phone
+  t.mock.method(client, 'request', async (endpoint, method) => {
+    if (method === 'GET') {
+      return { ok: true, status: 200, data: { success: true, data: { status: 'AUTHORIZED', reference: 'REF-BANK-200' } } };
+    }
+    return { ok: true, status: 201, data: { success: true, data: { token: 'tok-flow', url: `${process.env.SKYLINK_BASE_URL}/pay/tok-flow` } } };
+  });
+
+  delete require.cache[require.resolve('../api/index')];
+  const handler = require('../api/index');
+  async function invoke(url, body, method = 'POST') {
+    let status, data;
+    await handler({ url, method, body, headers: { host: 'localhost' } }, {
+      setHeader() {}, writeHead(code) { status = code; }, end(text) { data = JSON.parse(text); }
+    });
+    return { status, data };
+  }
+
+  // Missing name
+  const resNoName = await invoke('/api/create-payment', { amount: 1, invoicePhone: '04121234567' });
+  assert.equal(resNoName.status, 400);
+
+  // Invalid phone (non-numeric)
+  const resBadPhone = await invoke('/api/create-payment', { amount: 1, invoiceName: 'Carlos Test', invoicePhone: 'abc123456' });
+  assert.equal(resBadPhone.status, 400);
+
+  // Valid name and numeric phone (cédula omitted defaults to V-00000000)
+  const resOk = await invoke('/api/create-payment', {
+    amount: 1,
+    invoiceName: 'Carlos Gomez',
+    invoicePhone: '04121234567'
+  });
+  assert.equal(resOk.status, 200);
+  assert.equal(resOk.data.data.clientName, 'Carlos Gomez');
+  assert.equal(resOk.data.data.clientPhone, '584121234567');
+  assert.equal(resOk.data.data.clientId, 'V-00000000');
+
+  // Verify polling transitions to paid and dispatches WhatsApp notification
+  const orderCheck = await invoke(`/api/order-status/${resOk.data.data.identifier}`, null, 'GET');
+  assert.equal(orderCheck.data.data.status, 'paid');
+  assert.ok(orderCheck.data.data.whatsappDispatch, 'Order must include whatsappDispatch');
+  assert.equal(orderCheck.data.data.whatsappDispatch.phone, '584121234567');
+  assert.match(orderCheck.data.data.whatsappDispatch.waMeUrl, /wa\.me\/584121234567/);
+
+  // Resend WhatsApp endpoint works
+  const resendRes = await invoke('/api/resend-whatsapp', { order_id: resOk.data.data.identifier }, 'POST');
+  assert.equal(resendRes.status, 200);
+  assert.equal(resendRes.data.data.phone, '584121234567');
+});

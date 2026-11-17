@@ -4,6 +4,7 @@ const querystring = require('querystring');
 const https = require('https');
 const http = require('http');
 const { request: fetchSkylinkPay, paymentFromResponse } = require('../lib/skylink');
+const { normalizePhone, sendInvoiceWhatsApp } = require('../lib/whatsapp');
 
 // Configuración Oficial Skylink Pay (Valink Group)
 const SKYLINK_BASE_URL = process.env.SKYLINK_BASE_URL || 'https://dev-axis-payment.valinkgroup.com';
@@ -537,6 +538,11 @@ async function handleApi(req, res) {
             order.status = 'paid';
             order.reference = reference || 'SK-' + Math.floor(10000000 + Math.random() * 90000000);
             await dispatchOutboundWebhook('payment.success', order);
+            try {
+              order.whatsappDispatch = await sendInvoiceWhatsApp(order);
+            } catch (waErr) {
+              order.whatsappDispatch = { success: false, error: waErr.message };
+            }
           } else if (status === 'FAILED' || status === 'REJECTED') {
             order.status = 'failed';
             await dispatchOutboundWebhook('payment.failed', order);
@@ -582,13 +588,43 @@ async function handleApi(req, res) {
     if (pathname === '/api/create-payment' && req.method === 'POST') {
       const payload = await getRequestBody(req);
       const invoiceName = String(payload.invoiceName || payload.clientName || '').trim();
-      const invoiceId = String(payload.invoiceId || payload.clientId || '').trim();
-      if (invoiceName.length < 2 || !/^(?:[VE]-?)?\d{5,10}$/i.test(invoiceId)) {
+      const rawPhone = String(payload.invoicePhone || payload.clientPhone || payload.phone || '').trim();
+      let invoiceId = String(payload.invoiceId || payload.clientId || '').trim();
+
+      // Validación de Nombre obligatorio (mínimo 2 letras)
+      if (invoiceName.length < 2) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({
           success: false,
-          message: 'Nombre y cédula válidos son obligatorios para generar la factura.'
+          message: 'El nombre es obligatorio para generar la factura.'
         }));
+      }
+
+      // Validación de Teléfono / WhatsApp (debe contener solo números si se envía)
+      const hasPhone = rawPhone.length > 0;
+      const cleanPhone = normalizePhone(rawPhone);
+      const isDigitsOnly = /^\d+$/.test(rawPhone.replace(/[\s+-]/g, ''));
+      const hasValidId = /^(?:[VE]-?)?\d{5,10}$/i.test(invoiceId);
+
+      if (hasPhone) {
+        if (!isDigitsOnly || cleanPhone.length < 10 || cleanPhone.length > 15) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({
+            success: false,
+            message: 'El número de teléfono debe contener solo números (mínimo 10 dígitos).'
+          }));
+        }
+      } else if (!hasValidId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          message: 'Nombre y número de teléfono/WhatsApp válidos son obligatorios para continuar.'
+        }));
+      }
+
+      // Si no se proporcionó cédula, asignar consumidor final por defecto
+      if (!invoiceId) {
+        invoiceId = 'V-00000000';
       }
       let amountBs = 0;
 
@@ -633,10 +669,13 @@ async function handleApi(req, res) {
         items: payload.items || [],
         clientName: invoiceName,
         clientId: invoiceId.toUpperCase(),
+        clientPhone: cleanPhone || '',
+        invoicePhone: cleanPhone || rawPhone || '',
         invoice: {
           required: true,
           name: invoiceName,
-          idNumber: invoiceId.toUpperCase()
+          idNumber: invoiceId.toUpperCase(),
+          phone: cleanPhone || rawPhone || ''
         },
         payment_url: skylinkPayUrl,
         skylink_url: skylinkPayUrl,
@@ -647,7 +686,8 @@ async function handleApi(req, res) {
       indexPayment(sessionData);
       Object.assign(sessionData, {
         amountVes: amountBs,
-        clientPhone: '',
+        clientPhone: cleanPhone || '',
+        invoicePhone: cleanPhone || rawPhone || '',
         storePhone: storeSettings.storePhone,
         storeName: storeSettings.storeName,
         paymentUrl: skylinkPayUrl,
@@ -684,10 +724,48 @@ async function handleApi(req, res) {
       try { await refreshPaymentStatus(order); } catch (e) {}
       if (previousStatus !== 'paid' && order.status === 'paid') {
         await dispatchOutboundWebhook('payment.success', order);
+        const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
+        try {
+          order.whatsappDispatch = await sendInvoiceWhatsApp(order, { baseUrl: hostUrl });
+        } catch (waErr) {
+          order.whatsappDispatch = { success: false, error: waErr.message };
+        }
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: true, data: order }));
+    }
+
+    // ==========================================
+    // 8.1 REENVIAR FACTURA POR WHATSAPP (GREEN API)
+    // ==========================================
+    if (pathname === '/api/resend-whatsapp' && req.method === 'POST') {
+      const payload = await getRequestBody(req);
+      const orderId = payload.order_id || payload.orderId;
+      const order = orders.get(orderId);
+
+      if (!order) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Orden no encontrada' }));
+      }
+
+      if (payload.phone) {
+        order.clientPhone = normalizePhone(payload.phone);
+        order.invoicePhone = order.clientPhone;
+      }
+
+      const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
+      let result = null;
+      try {
+        result = await sendInvoiceWhatsApp(order, { baseUrl: hostUrl });
+        order.whatsappDispatch = result;
+      } catch (err) {
+        result = { success: false, error: err.message };
+        order.whatsappDispatch = result;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, data: result }));
     }
 
     // ==========================================

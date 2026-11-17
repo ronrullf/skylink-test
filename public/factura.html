@@ -181,17 +181,83 @@
       background: white; border: 1px solid #e2e8f0; border-radius: 14px;
       padding: 18px; text-align: center; color: #64748b; font-size: 13px;
     }
-    .invoice-actions { display: none; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .invoice-actions { display: none; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
     .invoice-actions button, .invoice-actions a {
       min-height: 48px; border-radius: 10px; display: flex; align-items: center;
       justify-content: center; border: 1px solid #cbd5e1; background: white;
       color: #334155; text-decoration: none; font-weight: 750; cursor: pointer;
+      font-size: 13px;
     }
     .invoice-actions .primary { background: #21543d; color: white; border-color: #21543d; }
 
+    /* ESTADO WHATSAPP & DESCARGA AUTOMÁTICA */
+    .whatsapp-status-card {
+      background: #f0fdf4;
+      border: 1.5px solid #86efac;
+      border-radius: 16px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .wa-status-left { display: flex; align-items: center; gap: 12px; }
+    .wa-status-icon { font-size: 28px; line-height: 1; }
+    .wa-status-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .btn-wa-open {
+      background: #25d366;
+      color: white;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 800;
+      padding: 10px 16px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 3px 10px rgba(37,211,102,0.3);
+      transition: all 0.15s ease;
+    }
+    .btn-wa-open:hover { background: #1eb857; transform: translateY(-1px); }
+    .btn-wa-resend {
+      background: white;
+      border: 1px solid #86efac;
+      color: #166534;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 9px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-wa-resend:hover { background: #dcfce7; }
+
+    .download-notice-card {
+      background: #eff6ff;
+      border: 1.5px solid #93c5fd;
+      border-radius: 14px;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: #1e40af;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+    }
+
+    @media (max-width: 540px) {
+      .invoice-actions { grid-template-columns: 1fr; }
+      .whatsapp-status-card { flex-direction: column; align-items: flex-start; }
+      .wa-status-actions { width: 100%; justify-content: stretch; }
+      .wa-status-actions a, .wa-status-actions button { flex: 1; justify-content: center; }
+    }
+
     @media print {
       body { background: white; padding: 0; }
-      .shipping-section, .action-links, .btn-whatsapp-send, .invoice-actions, .invoice-loading { display: none !important; }
+      .whatsapp-status-card, .download-notice-card, .shipping-section, .action-links, .btn-whatsapp-send, .invoice-actions, .invoice-loading { display: none !important; }
       .invoice-card { box-shadow: none; border: none; padding: 0; }
     }
   </style>
@@ -201,6 +267,34 @@
   <div class="invoice-wrapper">
 
     <div class="invoice-loading" id="invoiceLoading">Verificando el pago y preparando la factura…</div>
+
+    <!-- AVISO DE DESCARGA AUTOMÁTICA (SOLO SI EL PAGO ESTÁ COMPROBADO) -->
+    <div class="download-notice-card" id="downloadNoticeCard" style="display:none;">
+      <span style="font-size:22px;">📥</span>
+      <div>
+        <strong>¡Factura descargada con éxito!</strong>
+        <div style="font-size:12px; opacity:0.9;">Tu comprobante oficial PDF se ha guardado automáticamente en tu dispositivo.</div>
+      </div>
+    </div>
+
+    <!-- TARJETA DE ESTADO WHATSAPP GREEN API -->
+    <div class="whatsapp-status-card" id="whatsappStatusCard" style="display:none;">
+      <div class="wa-status-left">
+        <span class="wa-status-icon">📲</span>
+        <div>
+          <strong id="waStatusTitle" style="color:#14532d; font-size:14px; display:block;">Factura enviada por WhatsApp</strong>
+          <p id="waStatusSubtitle" style="margin:2px 0 0; font-size:12px; color:#166534;">Despachada al número registrado</p>
+        </div>
+      </div>
+      <div class="wa-status-actions">
+        <a id="btnOpenWhatsApp" class="btn-wa-open" target="_blank" rel="noopener noreferrer">
+          💬 Abrir en WhatsApp
+        </a>
+        <button type="button" class="btn-wa-resend" id="btnResendWa" onclick="reenviarFacturaWhatsApp()" title="Reenviar mensaje por WhatsApp">
+          🔄 Reenviar
+        </button>
+      </div>
+    </div>
 
     <!-- FACTURA DIGITAL -->
     <div class="invoice-card" id="invoiceCard" style="display:none;">
@@ -259,8 +353,9 @@
     </div>
 
     <div class="invoice-actions" id="invoiceActions">
-      <button class="primary" onclick="window.print()">🖨️ Imprimir factura</button>
-      <a href="/autopago">✨ Nueva compra</a>
+      <button class="primary" type="button" onclick="descargarFacturaPDF()">📥 Descargar Factura (PDF)</button>
+      <button class="secondary" type="button" onclick="window.print()">🖨️ Imprimir</button>
+      <a class="secondary" href="/autopago">✨ Nueva compra</a>
     </div>
 
     <!-- SECCIÓN DE ENVÍO Y DESPACHO -->
@@ -328,8 +423,149 @@
     let currentOrder = null;
     let internalGuide = 'INT-' + Math.floor(100000 + Math.random() * 900000);
 
+    function sanitizePdfText(str) {
+      return String(str || '')
+        .replace(/[\(\)\\\r\n]/g, ' ')
+        .replace(/[áàäâ]/g, 'a').replace(/[ÁÀÄÂ]/g, 'A')
+        .replace(/[éèëê]/g, 'e').replace(/[ÉÈËÊ]/g, 'E')
+        .replace(/[íìïî]/g, 'i').replace(/[ÍÌÏÎ]/g, 'I')
+        .replace(/[óòöô]/g, 'o').replace(/[ÓÒÖÔ]/g, 'O')
+        .replace(/[úùüû]/g, 'u').replace(/[ÚÙÜÛ]/g, 'U')
+        .replace(/[ñ]/g, 'n').replace(/[Ñ]/g, 'N');
+    }
+
+    // Generador nativo de PDF binario 1.4 compatible con todos los navegadores
+    function buildPdfInvoiceBytes(order) {
+      const items = order.items || [];
+      const orderNum = order.orderId || order.identifier || orderId || 'AUTO';
+      const dateStr = new Date(order.paidAt || order.createdAt || Date.now()).toLocaleString('es-VE');
+      const client = order.clientName || order.invoice?.name || 'Cliente';
+      const phone = order.clientPhone || order.invoicePhone || 'No registrado';
+      const idNum = order.clientId || order.invoice?.idNumber || 'V-00000000';
+      const ref = order.reference || 'SK-CONFIRMADA';
+      const usd = Number(order.amount || 0).toFixed(2);
+      const bs = Number(order.amountBs != null ? order.amountBs : (order.amountVes || (usd * 37.5))).toFixed(2);
+
+      let textOps = [
+        'BT',
+        '/F1 18 Tf',
+        '50 780 Td',
+        '(' + sanitizePdfText('SKYPAY - FACTURA DIGITAL DE COMPRA') + ') Tj',
+        '/F1 10 Tf',
+        '0 -24 Td',
+        '(' + sanitizePdfText('RIF: J-50733628-0 | Pasarela Oficial Skylink Pay (Valink Group)') + ') Tj',
+        '0 -18 Td',
+        '(' + sanitizePdfText('--------------------------------------------------------------------------------------------------') + ') Tj',
+        '/F1 11 Tf',
+        '0 -20 Td',
+        '(' + sanitizePdfText('Orden: #' + orderNum) + ') Tj',
+        '0 -16 Td',
+        '(' + sanitizePdfText('Fecha: ' + dateStr) + ') Tj',
+        '0 -16 Td',
+        '(' + sanitizePdfText('Cliente: ' + client) + ') Tj',
+        '0 -16 Td',
+        '(' + sanitizePdfText('WhatsApp / Telefono: ' + phone) + ') Tj',
+        '0 -16 Td',
+        '(' + sanitizePdfText('Cedula / RIF: ' + idNum) + ') Tj',
+        '0 -16 Td',
+        '(' + sanitizePdfText('Referencia Bancaria: ' + ref) + ') Tj',
+        '0 -20 Td',
+        '(' + sanitizePdfText('--------------------------------------------------------------------------------------------------') + ') Tj',
+        '/F1 11 Tf',
+        '0 -18 Td',
+        '(' + sanitizePdfText('DETALLE DE ARTICULOS:') + ') Tj'
+      ];
+
+      if (items.length === 0) {
+        textOps.push('0 -16 Td');
+        textOps.push('(' + sanitizePdfText('1x ' + (order.description || 'Compra Kiosco') + ' - Bs. ' + bs) + ') Tj');
+      } else {
+        items.forEach(it => {
+          textOps.push('0 -16 Td');
+          const p = Number(it.priceBs || (it.price ? it.price * 37.5 : 25));
+          const sub = (p * (it.qty || 1)).toFixed(2);
+          textOps.push('(' + sanitizePdfText((it.qty || 1) + 'x ' + it.name + ' - Bs. ' + sub) + ') Tj');
+        });
+      }
+
+      textOps.push('0 -22 Td');
+      textOps.push('(' + sanitizePdfText('--------------------------------------------------------------------------------------------------') + ') Tj');
+      textOps.push('/F1 14 Tf');
+      textOps.push('0 -22 Td');
+      textOps.push('(' + sanitizePdfText('TOTAL PAGADO: Bs. ' + bs + '  (aprox $' + usd + ' USD)') + ') Tj');
+      textOps.push('/F1 9 Tf');
+      textOps.push('0 -26 Td');
+      textOps.push('(' + sanitizePdfText('ESTADO: PAGO VERIFICADO Y ACREDITADO POR SKYLINK PAY') + ') Tj');
+      textOps.push('0 -14 Td');
+      textOps.push('(' + sanitizePdfText('Conserva este comprobante digital descargado en tu dispositivo.') + ') Tj');
+      textOps.push('ET');
+
+      const contentStream = textOps.join('\n');
+      const streamBuf = new TextEncoder().encode(contentStream);
+
+      const objects = [
+        '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+        '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+        '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n',
+        '4 0 obj\n<< /Length ' + streamBuf.length + ' >>\nstream\n' + contentStream + '\nendstream\nendobj\n',
+        '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n'
+      ];
+
+      let body = '%PDF-1.4\n';
+      const offsets = [];
+      offsets.push(new TextEncoder().encode(body).length);
+
+      for (let i = 0; i < objects.length; i++) {
+        offsets.push(new TextEncoder().encode(body).length);
+        body += objects[i];
+      }
+
+      const xrefOffset = new TextEncoder().encode(body).length;
+      let xref = 'xref\n0 ' + (objects.length + 1) + '\n0000000000 65535 f \n';
+      for (let i = 1; i <= objects.length; i++) {
+        const offStr = String(offsets[i]).padStart(10, '0');
+        xref += offStr + ' 00000 n \n';
+      }
+
+      const trailer = 'trailer\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF\n';
+      return new TextEncoder().encode(body + xref + trailer);
+    }
+
+    // Descarga verdadera del archivo PDF
+    function descargarFacturaPDF() {
+      if (!currentOrder || currentOrder.status !== 'paid') {
+        alert('La factura oficial solo se puede descargar una vez que el pago haya sido comprobado.');
+        return;
+      }
+
+      try {
+        const pdfBytes = buildPdfInvoiceBytes(currentOrder);
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `Factura-SkyPay-${currentOrder.orderId || orderId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 1500);
+
+        const notice = document.getElementById('downloadNoticeCard');
+        if (notice) notice.style.display = 'flex';
+      } catch (err) {
+        console.error('Error al generar PDF:', err);
+        window.print();
+      }
+    }
+
     async function cargarFactura() {
-      if (!orderId) return;
+      if (!orderId) {
+        document.getElementById('invoiceLoading').textContent = 'No se especificó ninguna orden.';
+        return;
+      }
 
       try {
         const res = await fetch(`/api/order-status/${encodeURIComponent(orderId)}`);
@@ -338,11 +574,28 @@
 
         currentOrder = json.data;
 
-        if (currentOrder.status !== 'paid') throw new Error('El pago todavía no ha sido confirmado por Skylink Pay.');
+        // VERIFICACIÓN ESTRICTA: La factura SOLO se descarga y muestra si el pago fue COMPROBADO
+        if (currentOrder.status !== 'paid') {
+          document.getElementById('invoiceLoading').innerHTML = `
+            <div style="background:#fff3cd; border:1.5px solid #ffeeba; color:#856404; padding:22px; border-radius:14px; text-align:center;">
+              <span style="font-size:36px;">⏳</span>
+              <h3 style="margin:10px 0 6px; font-size:18px;">Pago aún no comprobado</h3>
+              <p style="margin:0 0 14px; font-size:13px; color:#664d03;">
+                La factura oficial y el envío por WhatsApp se desbloquean única y exclusivamente cuando el pago bancario ha sido verificado y acreditado.
+              </p>
+              <a href="/datos-factura" style="display:inline-block; padding:10px 18px; background:#0f172a; color:white; border-radius:10px; text-decoration:none; font-weight:700;">
+                Comprobar estado del pago
+              </a>
+            </div>
+          `;
+          return;
+        }
 
+        // Pago comprobado: mostrar interfaz de factura
         document.getElementById('invoiceLoading').style.display = 'none';
         document.getElementById('invoiceCard').style.display = 'block';
         document.getElementById('invoiceActions').style.display = 'grid';
+
         if (currentOrder.source === 'kiosk') {
           document.getElementById('shippingSection').style.display = 'none';
         }
@@ -373,7 +626,7 @@
           document.getElementById('storePhoneInput').value = currentOrder.storePhone;
         }
 
-        // Renderizar tabla
+        // Renderizar tabla de artículos
         const tbody = document.getElementById('invoiceItemsBody');
         tbody.innerHTML = '';
         const items = currentOrder.items || [];
@@ -391,16 +644,68 @@
             const row = document.createElement('tr');
             row.innerHTML = `
               <td><strong>${it.qty}x</strong> ${it.name}</td>
-              <td class="col-r">$${it.price.toFixed(2)}</td>
-              <td class="col-r"><strong>$${(it.price * it.qty).toFixed(2)}</strong></td>
+              <td class="col-r">$${Number(it.price || (it.priceBs / rate)).toFixed(2)}</td>
+              <td class="col-r"><strong>$${(Number(it.price || (it.priceBs / rate)) * it.qty).toFixed(2)}</strong></td>
             `;
             tbody.appendChild(row);
           });
         }
 
+        // 1. DESCARGA VERDADERA DE FACTURA: Solo se descarga si el pago fue comprobado
+        if (params.get('auto_download') === '1') {
+          setTimeout(() => {
+            descargarFacturaPDF();
+          }, 350);
+        }
+
+        // 2. ESTADO Y ACCESO DIRECTO WHATSAPP (Green API / wa.me)
+        const waCard = document.getElementById('whatsappStatusCard');
+        const phone = currentOrder.clientPhone || currentOrder.invoicePhone || '';
+        if (phone && waCard) {
+          waCard.style.display = 'flex';
+          const sub = document.getElementById('waStatusSubtitle');
+          if (sub) {
+            sub.textContent = `Despachada al número registrado: +${phone}`;
+          }
+          const btnOpen = document.getElementById('btnOpenWhatsApp');
+          const defaultMsg = `🧾 ¡Hola! Mi compra #${orderId} ha sido confirmada en SkyPay. Consulta mi factura digital aquí: ${window.location.href}`;
+          const waUrl = currentOrder.whatsappDispatch?.waMeUrl || `https://wa.me/${phone}?text=${encodeURIComponent(defaultMsg)}`;
+          if (btnOpen) btnOpen.href = waUrl;
+        }
+
       } catch (e) {
         console.error(e);
         document.getElementById('invoiceLoading').textContent = e.message || 'No se pudo cargar la factura.';
+      }
+    }
+
+    // Reenvío de factura por WhatsApp vía Green API
+    async function reenviarFacturaWhatsApp() {
+      const btn = document.getElementById('btnResendWa');
+      if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+
+      try {
+        const res = await fetch('/api/resend-whatsapp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: currentOrder ? (currentOrder.orderId || orderId) : orderId })
+        });
+        const json = await res.json();
+        if (json.success) {
+          alert('✓ Factura despachada por WhatsApp exitosamente.');
+          if (json.data && json.data.waMeUrl) {
+            window.open(json.data.waMeUrl, '_blank');
+          }
+        } else {
+          alert('Aviso: Abriendo chat directo de WhatsApp…');
+          if (currentOrder && currentOrder.clientPhone) {
+            window.open(`https://wa.me/${currentOrder.clientPhone}`, '_blank');
+          }
+        }
+      } catch (err) {
+        alert('Error al conectar con el servidor: ' + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🔄 Reenviar'; }
       }
     }
 
