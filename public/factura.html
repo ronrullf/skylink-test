@@ -296,6 +296,22 @@
       </div>
     </div>
 
+    <!-- TARJETA DE ESTADO CORREO RESEND -->
+    <div class="whatsapp-status-card" id="emailStatusCard" style="display:none; background:#f0f9ff; border-color:#7dd3fc;">
+      <div class="wa-status-left">
+        <span class="wa-status-icon">📧</span>
+        <div>
+          <strong id="emailStatusTitle" style="color:#0369a1; font-size:14px; display:block;">Factura PDF enviada por Correo</strong>
+          <p id="emailStatusSubtitle" style="margin:2px 0 0; font-size:12px; color:#0284c7;">Despachada con PDF adjunto</p>
+        </div>
+      </div>
+      <div class="wa-status-actions">
+        <button type="button" class="btn-wa-resend" id="btnResendEmail" style="border-color:#7dd3fc; color:#0369a1;" onclick="reenviarFacturaEmail()" title="Reenviar factura por correo">
+          🔄 Reenviar Correo
+        </button>
+      </div>
+    </div>
+
     <!-- FACTURA DIGITAL -->
     <div class="invoice-card" id="invoiceCard" style="display:none;">
       <div class="invoice-badge-ok">
@@ -673,6 +689,17 @@
           if (btnOpen) btnOpen.href = waUrl;
         }
 
+        // 3. ESTADO DE CORREO ELECTRÓNICO (Resend con PDF adjunto)
+        const emailCard = document.getElementById('emailStatusCard');
+        const clientEmail = currentOrder.clientEmail || currentOrder.invoiceEmail || '';
+        if (clientEmail && emailCard) {
+          emailCard.style.display = 'flex';
+          const subEmail = document.getElementById('emailStatusSubtitle');
+          if (subEmail) {
+            subEmail.textContent = `Despachada con PDF adjunto a: ${clientEmail}`;
+          }
+        }
+
       } catch (e) {
         console.error(e);
         document.getElementById('invoiceLoading').textContent = e.message || 'No se pudo cargar la factura.';
@@ -706,6 +733,30 @@
         alert('Error al conectar con el servidor: ' + err.message);
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = '🔄 Reenviar'; }
+      }
+    }
+
+    // Reenvío de factura por correo vía Resend
+    async function reenviarFacturaEmail() {
+      const btn = document.getElementById('btnResendEmail');
+      if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+
+      try {
+        const res = await fetch('/api/resend-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: currentOrder ? (currentOrder.orderId || orderId) : orderId })
+        });
+        const json = await res.json();
+        if (json.success) {
+          alert('✓ Factura y comprobante PDF enviados por correo exitosamente.');
+        } else {
+          alert(json.message || 'No se pudo enviar el correo en este momento.');
+        }
+      } catch (err) {
+        alert('Error al conectar con el servidor: ' + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🔄 Reenviar Correo'; }
       }
     }
 

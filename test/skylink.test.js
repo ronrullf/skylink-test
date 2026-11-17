@@ -521,3 +521,68 @@ test('DolarAPI integration, product prices 18, 19, 20, 24 Bs and random default 
   assert.equal(createdNoPrice.status, 201);
   assert.ok(createdNoPrice.data.data.priceBs >= 15 && createdNoPrice.data.data.priceBs <= 40);
 });
+
+test('Resend Email integration: PDF invoice attachment, security guards and automated dispatch upon payment', async t => {
+  const emailModule = require('../lib/email');
+
+  // 1. PDF generator creates valid binary PDF 1.4 buffer
+  const sampleOrder = {
+    orderId: 'AUTO-PDF-TEST',
+    clientName: 'Laura Sanchez',
+    clientId: 'V-11223344',
+    clientPhone: '04121234567',
+    clientEmail: 'delivered@resend.dev',
+    amountBs: 40.00,
+    amount: 1.05,
+    reference: 'SK-REF-99',
+    status: 'paid',
+    items: [{ name: 'Refresco Lata 355ml', qty: 2, priceBs: 20.00 }]
+  };
+
+  const pdfBuf = emailModule.buildPdfInvoiceBuffer(sampleOrder);
+  assert.ok(Buffer.isBuffer(pdfBuf));
+  assert.ok(pdfBuf.toString('binary').startsWith('%PDF-1.4'));
+  assert.ok(pdfBuf.toString('binary').includes('%%EOF'));
+
+  // 2. Security guard: sendInvoiceEmail strictly blocks unpaid orders
+  const unpaidOrder = { ...sampleOrder, status: 'pending' };
+  const blockedRes = await emailModule.sendInvoiceEmail(unpaidOrder);
+  assert.equal(blockedRes.success, false);
+  assert.equal(blockedRes.blocked, true);
+
+  // 3. Automated dispatch via /api/create-payment and /api/order-status
+  t.mock.method(client, 'request', async (endpoint, method) => {
+    if (method === 'GET') {
+      return { ok: true, status: 200, data: { success: true, data: { status: 'AUTHORIZED', reference: 'REF-BANK-RESEND' } } };
+    }
+    return { ok: true, status: 201, data: { success: true, data: { token: 'tok-resend', url: `${process.env.SKYLINK_BASE_URL}/pay/tok-resend` } } };
+  });
+
+  delete require.cache[require.resolve('../api/index')];
+  const handler = require('../api/index');
+  async function invoke(url, body, method = 'POST') {
+    let status, data;
+    await handler({ url, method, body, headers: { host: 'localhost' } }, {
+      setHeader() {}, writeHead(code) { status = code; }, end(text) { data = JSON.parse(text); }
+    });
+    return { status, data };
+  }
+
+  const created = await invoke('/api/create-payment', {
+    amount: 1,
+    invoiceName: 'Laura Sanchez',
+    invoicePhone: '04121234567',
+    invoiceId: 'V-11223344',
+    invoiceEmail: 'delivered@resend.dev'
+  });
+  assert.equal(created.status, 200);
+  assert.equal(created.data.data.clientEmail, 'delivered@resend.dev');
+
+  // Verify transition to paid dispatches both WhatsApp and Resend email with PDF
+  const orderCheck = await invoke(`/api/order-status/${created.data.data.identifier}`, null, 'GET');
+  assert.equal(orderCheck.data.data.status, 'paid');
+  assert.ok(orderCheck.data.data.emailDispatch, 'Order must include emailDispatch');
+  assert.equal(orderCheck.data.data.emailDispatch.recipient, 'delivered@resend.dev');
+  assert.equal(orderCheck.data.data.emailDispatch.provider, 'resend');
+  assert.equal(orderCheck.data.data.emailDispatch.success, true);
+});

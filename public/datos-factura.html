@@ -110,6 +110,11 @@
           <label for="invoiceId">Cédula o RIF *</label>
           <input id="invoiceId" name="invoiceId" maxlength="15" placeholder="Ej: V-12345678" required>
         </div>
+        <div class="field">
+          <label for="invoiceEmail">Correo Electrónico (para recibir la factura PDF) <small style="color:#64748b; font-weight:normal;">(Opcional)</small></label>
+          <input id="invoiceEmail" name="invoiceEmail" type="email" autocomplete="email" placeholder="Ej: tu-correo@gmail.com">
+          <p class="hint">Al confirmarse el pago, tu factura se enviará automáticamente a tu WhatsApp y correo.</p>
+        </div>
         <button class="primary" id="continueButton" type="submit">Continuar al pago</button>
         <p class="message error" id="formError" role="alert" hidden></p>
       </form>
@@ -186,6 +191,7 @@
       const name = document.getElementById('invoiceName').value.trim();
       const phone = (document.getElementById('invoicePhone').value || '').replace(/\D/g, '');
       let idNumber = document.getElementById('invoiceId').value.trim().toUpperCase();
+      const email = document.getElementById('invoiceEmail')?.value.trim() || '';
       const errorBox = document.getElementById('formError');
       const button = document.getElementById('continueButton');
 
@@ -201,6 +207,11 @@
 
       if (!idNumber || !/^(?:[VEJG]-?)?\d{5,10}$/i.test(idNumber)) {
         setError(errorBox, 'La cédula o RIF es obligatoria (ej: V-12345678).');
+        return;
+      }
+
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setError(errorBox, 'Ingresa un correo electrónico válido (ej: tu-correo@gmail.com).');
         return;
       }
 
@@ -223,7 +234,9 @@
             invoiceName: name,
             invoicePhone: phone,
             clientPhone: phone,
-            invoiceId: idNumber
+            invoiceId: idNumber,
+            invoiceEmail: email,
+            clientEmail: email
           })
         });
         const json = await response.json();

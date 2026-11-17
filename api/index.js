@@ -5,6 +5,7 @@ const https = require('https');
 const http = require('http');
 const { request: fetchSkylinkPay, paymentFromResponse } = require('../lib/skylink');
 const { normalizePhone, sendInvoiceWhatsApp } = require('../lib/whatsapp');
+const { sendInvoiceEmail } = require('../lib/email');
 
 // Configuración Oficial Skylink Pay (Valink Group)
 const SKYLINK_BASE_URL = process.env.SKYLINK_BASE_URL || 'https://dev-axis-payment.valinkgroup.com';
@@ -605,6 +606,19 @@ async function handleApi(req, res) {
                 delete order._dispatchingWhatsApp;
               }
             }
+
+            if (!order._dispatchingEmail && (order.clientEmail || order.invoiceEmail)) {
+              order._dispatchingEmail = true;
+              try {
+                console.log(`[SkyPay Webhook] Despachando factura PDF por correo (Resend) para orden ${order.orderId}...`);
+                order.emailDispatch = await sendInvoiceEmail(order);
+              } catch (mailErr) {
+                console.error(`[SkyPay Webhook] Error en despacho Email orden ${order.orderId}:`, mailErr.message);
+                order.emailDispatch = { success: false, error: mailErr.message };
+              } finally {
+                delete order._dispatchingEmail;
+              }
+            }
           } else if (status === 'FAILED' || status === 'REJECTED') {
             order.status = 'failed';
             await dispatchOutboundWebhook('payment.failed', order);
@@ -652,6 +666,7 @@ async function handleApi(req, res) {
       const invoiceName = String(payload.invoiceName || payload.clientName || '').trim();
       const rawPhone = String(payload.invoicePhone || payload.clientPhone || payload.phone || '').trim();
       let invoiceId = String(payload.invoiceId || payload.clientId || '').trim();
+      const invoiceEmail = String(payload.invoiceEmail || payload.clientEmail || payload.email || '').trim();
 
       // Validación de Nombre obligatorio (mínimo 2 letras)
       if (invoiceName.length < 2) {
@@ -732,11 +747,14 @@ async function handleApi(req, res) {
         clientId: invoiceId.toUpperCase(),
         clientPhone: cleanPhone || '',
         invoicePhone: cleanPhone || rawPhone || '',
+        clientEmail: invoiceEmail,
+        invoiceEmail: invoiceEmail,
         invoice: {
           required: true,
           name: invoiceName,
           idNumber: invoiceId.toUpperCase(),
-          phone: cleanPhone || rawPhone || ''
+          phone: cleanPhone || rawPhone || '',
+          email: invoiceEmail
         },
         payment_url: skylinkPayUrl,
         skylink_url: skylinkPayUrl,
@@ -805,6 +823,22 @@ async function handleApi(req, res) {
         }
       }
 
+      // Despacho inmediato y automático por Correo Electrónico vía Resend (con PDF adjunto)
+      const hasDispatchedEmail = order.emailDispatch && (order.emailDispatch.status === 'sent' || order.emailDispatch.provider === 'resend');
+      if (isPaid && !hasDispatchedEmail && !order._dispatchingEmail && (order.clientEmail || order.invoiceEmail)) {
+        order._dispatchingEmail = true;
+        const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
+        try {
+          console.log(`[SkyPay] Despachando automáticamente factura PDF por correo (Resend) para orden ${order.orderId || id}...`);
+          order.emailDispatch = await sendInvoiceEmail(order, { baseUrl: hostUrl });
+        } catch (mailErr) {
+          console.error(`[SkyPay] Error en despacho Email orden ${order.orderId || id}:`, mailErr.message);
+          order.emailDispatch = { success: false, error: mailErr.message };
+        } finally {
+          delete order._dispatchingEmail;
+        }
+      }
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: true, data: order }));
     }
@@ -844,6 +878,47 @@ async function handleApi(req, res) {
       } catch (err) {
         result = { success: false, error: err.message };
         order.whatsappDispatch = result;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, data: result }));
+    }
+
+    // ==========================================
+    // 8.2 REENVIAR FACTURA POR CORREO (RESEND)
+    // ==========================================
+    if (pathname === '/api/resend-email' && req.method === 'POST') {
+      const payload = await getRequestBody(req);
+      const orderId = payload.order_id || payload.orderId;
+      const order = orders.get(orderId);
+
+      if (!order) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Orden no encontrada' }));
+      }
+
+      // SEGURIDAD: Solo enviar la factura si el dinero ya fue pagado y confirmado
+      if (order.status !== 'paid') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          message: 'La factura no puede ser enviada porque el pago no ha sido confirmado por la pasarela.'
+        }));
+      }
+
+      if (payload.email) {
+        order.clientEmail = String(payload.email).trim();
+        order.invoiceEmail = order.clientEmail;
+      }
+
+      const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
+      let result = null;
+      try {
+        result = await sendInvoiceEmail(order, { baseUrl: hostUrl });
+        order.emailDispatch = result;
+      } catch (err) {
+        result = { success: false, error: err.message };
+        order.emailDispatch = result;
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
