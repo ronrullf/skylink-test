@@ -825,3 +825,55 @@ test('Commercial MVP: crypto encryption, Admin Auth, Cédula Express CRM, Evolut
   const deleted = await invoke(`/api/products/${prodId}`, null, 'DELETE', authHeader);
   assert.equal(deleted.status, 200);
 });
+
+test('tablet front & rear camera switching, unsharp mask sharpening filter, center-zoom crop, and CSS preview mirroring', async () => {
+  const fs = require('fs');
+  const path = require('path');
+
+  // 1. Verificar soporte de cámara frontal y filtro Laplaciano en scanner-engine.js
+  const engineSource = fs.readFileSync(path.join(__dirname, '..', 'public', 'scanner-engine.js'), 'utf8');
+  assert.match(engineSource, /realzarNitidezLaplaciana/, 'Debe incluir función de realce de nitidez Laplaciana');
+  assert.match(engineSource, /switchCamera\s*\(/, 'Debe incluir método switchCamera');
+  assert.match(engineSource, /this\.facingMode\s*=\s*options\.facingMode/, 'Debe inicializar facingMode');
+  assert.match(engineSource, /camera-mirrored/, 'Debe aplicar clase camera-mirrored al usar cámara frontal');
+  assert.match(engineSource, /scaleX\(-1\)/, 'Debe invertir el eje X en vista previa para efecto espejo');
+  assert.match(engineSource, /realzarContrasteBajaResolucion/, 'Debe retener realce de contraste');
+
+  // 2. Verificar que el algoritmo Laplaciano 3x3 aumenta la diferencia de bordes (foco fijo de tablets)
+  const mockCtx = {
+    getImageData: () => ({
+      data: new Uint8ClampedArray([
+        // 3x3 simulación de borde borroso
+        100, 100, 100, 255,   110, 110, 110, 255,   120, 120, 120, 255,
+        100, 100, 100, 255,   160, 160, 160, 255,   120, 120, 120, 255,
+        100, 100, 100, 255,   110, 110, 110, 255,   120, 120, 120, 255
+      ])
+    }),
+    putImageData: (imgData) => {
+      // El píxel central (160) tras convolución 5*160 - 110 - 110 - 100 - 120 = 800 - 440 = 360 -> clamped a 255
+      assert.ok(imgData.data[16] >= 200, 'El píxel central debe haberse acentuado por encima del umbral borroso');
+    }
+  };
+  const mockWindow = {};
+  const fn = new Function('window', 'global', engineSource + '; return window.SkyPayScannerUtils;');
+  const utils = fn(mockWindow, mockWindow);
+  assert.ok(typeof utils.realzarNitidezLaplaciana === 'function', 'Utils debe exportar realzarNitidezLaplaciana');
+  const resSharp = utils.realzarNitidezLaplaciana(mockCtx, 3, 3);
+  assert.equal(resSharp, true, 'El filtro debe ejecutarse con éxito');
+
+  // 3. Verificar controles de cambio de cámara y efecto espejo en autopago.html
+  const autopagoHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'autopago.html'), 'utf8');
+  assert.match(autopagoHtml, /id="btnFlipCamera"/, 'AutoPago debe contener botón btnFlipCamera');
+  assert.match(autopagoHtml, /toggleFacingCamera\(\)/, 'AutoPago debe invocar toggleFacingCamera');
+  assert.match(autopagoHtml, /currentFacingMode/, 'AutoPago debe gestionar estado currentFacingMode');
+  assert.match(autopagoHtml, /realzarNitidezLaplaciana/, 'AutoPago debe aplicar nitidez Laplaciana en el ciclo de escaneo');
+  assert.match(autopagoHtml, /\.camera-mirrored/, 'AutoPago debe definir estilo .camera-mirrored');
+  assert.match(autopagoHtml, /transform:\s*scaleX\(-1\)/, 'AutoPago debe invertir el video frontal');
+
+  // 4. Verificar controles de cambio de cámara en admin.html
+  const adminHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'admin.html'), 'utf8');
+  assert.match(adminHtml, /id="btnAdminSwitchCam"/, 'Admin debe contener botón btnAdminSwitchCam');
+  assert.match(adminHtml, /switchAdminCamera\(\)/, 'Admin debe invocar switchAdminCamera');
+  assert.match(adminHtml, /camera-mirrored/, 'Admin debe definir regla espejo para cámara frontal');
+});
+

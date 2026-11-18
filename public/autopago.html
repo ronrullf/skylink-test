@@ -171,6 +171,36 @@
       border-color: #d97706;
       font-weight: 700;
     }
+    .btn-flip-camera {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+    }
+    .btn-flip-camera:hover {
+      background: #334155;
+      border-color: #475569;
+    }
+    .btn-flip-camera.active-front {
+      background: #0284c7;
+      border-color: #0369a1;
+      color: #ffffff;
+      font-weight: 700;
+    }
+    #cameraVideo.camera-mirrored,
+    .camera-mirrored video,
+    video.camera-mirrored {
+      transform: scaleX(-1) !important;
+      -webkit-transform: scaleX(-1) !important;
+    }
     .camera-viewport-container {
       position: relative;
       height: clamp(230px, 32vh, 360px);
@@ -806,6 +836,9 @@
           <span class="scanner-live-badge active" id="cameraLiveBadge">Iniciando escáner continuo...</span>
         </div>
         <div class="scanner-actions">
+          <button type="button" class="btn-flip-camera" id="btnFlipCamera" onclick="toggleFacingCamera()" title="Cambiar entre cámara trasera y cámara frontal (Tablet)">
+            🔄 Girar cámara
+          </button>
           <button type="button" class="btn-register-mode" id="btnRegisterMode" onclick="toggleModoRegistro()" title="Apunta la cámara para registrar un nuevo producto">
             ➕ Registrar
           </button>
@@ -1900,6 +1933,29 @@
         }
       }
 
+      // Si aún no detectó (o estamos en cámara frontal de tablet), aplicar filtro Laplaciano de nitidez para corregir el foco fijo
+      if ((!barcodes || barcodes.length === 0)) {
+        ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, renderW, renderH);
+        const nitidezMejorada = realzarNitidezLaplaciana(ctx, renderW, renderH);
+        if (nitidezMejorada) {
+          try {
+            barcodes = await detector.detect(canvas);
+          } catch (e) {}
+
+          if ((!barcodes || barcodes.length === 0) && window.ZXing) {
+            const fallback = getZxingFallbackReader();
+            if (fallback) {
+              try {
+                const zxResult = fallback.decodeFromCanvas(canvas);
+                if (zxResult && zxResult.getText()) {
+                  barcodes = [{ rawValue: zxResult.getText(), format: String(zxResult.getBarcodeFormat()) }];
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      }
+
       if (barcodes && barcodes.length > 0) {
         const elapsed = (performance.now() - tStart).toFixed(1);
         const first = barcodes[0];
@@ -1961,9 +2017,69 @@
       return false;
     }
 
-    // Hardware: Enfoque continuo y linterna
+    /**
+     * Filtro Laplaciano de Nitidez para cámaras frontales de tablet (foco fijo sin macro/autofocus)
+     */
+    function realzarNitidezLaplaciana(ctx, w, h) {
+      try {
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+        const len = w * h;
+        const gray = new Uint8Array(len);
+        for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+          gray[j] = (data[i] * 77 + data[i + 1] * 150 + data[i + 2] * 29) >> 8;
+        }
+        for (let y = 1; y < h - 1; y++) {
+          const row = y * w;
+          const prevRow = (y - 1) * w;
+          const nextRow = (y + 1) * w;
+          for (let x = 1; x < w - 1; x++) {
+            const idx = row + x;
+            const center = gray[idx];
+            const val = (center * 5) - gray[prevRow + x] - gray[nextRow + x] - gray[idx - 1] - gray[idx + 1];
+            const clamped = val < 0 ? 0 : (val > 255 ? 255 : val);
+            const px = idx * 4;
+            data[px] = clamped;
+            data[px + 1] = clamped;
+            data[px + 2] = clamped;
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+        return true;
+      } catch (e) {}
+      return false;
+    }
+
+    // Hardware: Enfoque continuo, linterna y selector de cámara (frontal / trasera)
     let currentTrack = null;
     let torchOn = false;
+    let currentFacingMode = 'environment';
+
+    async function toggleFacingCamera() {
+      currentFacingMode = (currentFacingMode === 'user' ? 'environment' : 'user');
+      const video = document.getElementById('cameraVideo');
+      const btnFlip = document.getElementById('btnFlipCamera');
+      const isFront = currentFacingMode === 'user';
+
+      if (video) {
+        video.classList.toggle('camera-mirrored', isFront);
+      }
+      if (btnFlip) {
+        btnFlip.classList.toggle('active-front', isFront);
+        btnFlip.textContent = isFront ? '📷 Frontal (Tablet)' : '🔄 Girar cámara';
+      }
+
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+      }
+      currentTrack = null;
+      torchOn = false;
+      const btnTorch = document.getElementById('btnTorch');
+      if (btnTorch) btnTorch.style.display = 'none';
+
+      await iniciarCamaraContinuo();
+    }
 
     async function aplicarEnfoqueContinuo(track) {
       if (!track || typeof track.applyConstraints !== 'function') return;
@@ -2056,13 +2172,14 @@
 
     // Negociación robusta de cámara para Android, iPad y sensores de baja resolución (VGA / 480p / 720p)
     async function solicitarStreamCamaraRobusto() {
+      const mode = currentFacingMode === 'user' ? 'user' : 'environment';
       const perfiles = [
         // 1. Perfil móvil recomendado (720p sin forzar límites rígidos)
-        { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, min: 10 } }, audio: false },
+        { video: { facingMode: { ideal: mode }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, min: 10 } }, audio: false },
         // 2. Perfil para cámaras Android de baja resolución (VGA 640x480 / 480p)
-        { video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
+        { video: { facingMode: { ideal: mode }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
         // 3. Perfil relajado sin dimensiones forzadas (acepta cualquier sensor Android o iPad)
-        { video: { facingMode: { ideal: 'environment' } }, audio: false },
+        { video: { facingMode: { ideal: mode } }, audio: false },
         // 4. Perfil universal (cualquier cámara del dispositivo)
         { video: true, audio: false }
       ];

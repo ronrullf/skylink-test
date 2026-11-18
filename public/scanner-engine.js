@@ -85,11 +85,51 @@
     return false;
   }
 
-  async function solicitarStreamCamaraRobusto() {
+  /**
+   * Filtro de Enfoque Laplaciano (Unsharp Mask) de alta velocidad.
+   * Diseñado específicamente para cámaras frontales de tablets que tienen óptica de foco fijo
+   * (sin autofocus a corta distancia), aumentando el contraste de bordes finos en códigos 1D y QR.
+   */
+  function realzarNitidezLaplaciana(ctx, w, h) {
+    try {
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+      const len = w * h;
+      const gray = new Uint8Array(len);
+
+      for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+        gray[j] = (data[i] * 77 + data[i + 1] * 150 + data[i + 2] * 29) >> 8;
+      }
+
+      // Máscara convolucional 3x3: Centro * 5 - (Arriba + Abajo + Izquierda + Derecha)
+      for (let y = 1; y < h - 1; y++) {
+        const row = y * w;
+        const prevRow = (y - 1) * w;
+        const nextRow = (y + 1) * w;
+        for (let x = 1; x < w - 1; x++) {
+          const idx = row + x;
+          const center = gray[idx];
+          const val = (center * 5) - gray[prevRow + x] - gray[nextRow + x] - gray[idx - 1] - gray[idx + 1];
+          const clamped = val < 0 ? 0 : (val > 255 ? 255 : val);
+          const px = idx * 4;
+          data[px] = clamped;
+          data[px + 1] = clamped;
+          data[px + 2] = clamped;
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function solicitarStreamCamaraRobusto(facingMode = 'environment') {
+    const targetMode = facingMode === 'user' ? 'user' : 'environment';
     const perfiles = [
-      { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, min: 10 } }, audio: false },
-      { video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
-      { video: { facingMode: { ideal: 'environment' } }, audio: false },
+      { video: { facingMode: { ideal: targetMode }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, min: 10 } }, audio: false },
+      { video: { facingMode: { ideal: targetMode }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
+      { video: { facingMode: { ideal: targetMode } }, audio: false },
       { video: true, audio: false }
     ];
 
@@ -112,8 +152,10 @@
       this.onDetect = options.onDetect || (() => {});
       this.onStatus = options.onStatus || (() => {});
       this.onError = options.onError || (() => {});
+      this.onCameraChange = options.onCameraChange || (() => {});
       this.cooldownMs = options.cooldownMs || 1400;
       this.minIntervalMs = options.minIntervalMs || 60;
+      this.facingMode = options.facingMode || 'environment';
 
       this.stream = null;
       this.track = null;
@@ -128,6 +170,67 @@
       this.rafId = null;
     }
 
+    _applyMirrorStyle() {
+      if (!this.video) return;
+      if (this.facingMode === 'user') {
+        this.video.classList.add('camera-mirrored');
+        this.video.style.transform = 'scaleX(-1)';
+        this.video.style.webkitTransform = 'scaleX(-1)';
+      } else {
+        this.video.classList.remove('camera-mirrored');
+        this.video.style.transform = '';
+        this.video.style.webkitTransform = '';
+      }
+    }
+
+    async switchCamera() {
+      this.facingMode = (this.facingMode === 'user' ? 'environment' : 'user');
+      this._applyMirrorStyle();
+
+      if (this.running) {
+        if (this.stream) {
+          this.stream.getTracks().forEach(t => t.stop());
+          this.stream = null;
+        }
+        this.track = null;
+        this.torchOn = false;
+
+        this.onStatus(this.facingMode === 'user' ? 'Cambiando a cámara frontal (Tablet)…' : 'Cambiando a cámara trasera…', false);
+
+        try {
+          this.stream = await solicitarStreamCamaraRobusto(this.facingMode);
+          this.video.srcObject = this.stream;
+          await this.video.play();
+
+          if (!this.video.videoWidth) {
+            await new Promise(resolve => {
+              this.video.onloadedmetadata = () => resolve();
+              setTimeout(resolve, 500);
+            });
+          }
+
+          const [track] = this.stream.getVideoTracks();
+          this.track = track || null;
+          if (this.track && typeof this.track.applyConstraints === 'function') {
+            try {
+              const caps = this.track.getCapabilities ? this.track.getCapabilities() : {};
+              if (caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+                await this.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+              }
+            } catch {}
+          }
+
+          this.onStatus(this.facingMode === 'user' ? '📷 Frontal activa (Modo Tablet)' : '📷 Trasera activa', true);
+        } catch (err) {
+          this.onStatus('Cámara no disponible', false);
+          this.onError('Error al cambiar cámara: ' + (err.message || 'No disponible'));
+        }
+      }
+
+      this.onCameraChange(this.facingMode);
+      return this.facingMode;
+    }
+
     async start() {
       if (this.running && this.stream && this.stream.active) return;
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -136,13 +239,14 @@
         throw new Error(msg);
       }
 
+      this._applyMirrorStyle();
       this.onStatus('Conectando cámara…', false);
       this.video.setAttribute('playsinline', 'true');
       this.video.setAttribute('webkit-playsinline', 'true');
       this.video.muted = true;
 
       try {
-        this.stream = await solicitarStreamCamaraRobusto();
+        this.stream = await solicitarStreamCamaraRobusto(this.facingMode);
         this.video.srcObject = this.stream;
         await this.video.play();
 
@@ -165,7 +269,7 @@
         }
 
         this.running = true;
-        this.onStatus('Escáner activo', true);
+        this.onStatus(this.facingMode === 'user' ? '📷 Frontal activa (Modo Tablet)' : 'Escáner activo', true);
         this._bindTapToFocus();
         this._loop();
       } catch (err) {
@@ -262,6 +366,7 @@
 
       this.ctx.drawImage(this.video, sx, sy, sw, sh, 0, 0, rw, rh);
 
+      // Fase 1: Detección directa del cuadro original
       let barcodes = [];
       if (detector) {
         try { barcodes = await detector.detect(this.canvas); } catch {}
@@ -279,13 +384,66 @@
         }
       }
 
+      // Fase 2: Estiramiento de histograma de contraste (para sensores VGA/480p de baja luz)
       if (!barcodes || barcodes.length === 0) {
         const enhanced = realzarContrasteBajaResolucion(this.ctx, rw, rh);
         if (enhanced) {
           if (detector) {
             try { barcodes = await detector.detect(this.canvas); } catch {}
           }
-          if ((!barcodes || barcodes.length === 0)) {
+          if (!barcodes || barcodes.length === 0) {
+            const fb = getZxingFallback();
+            if (fb) {
+              try {
+                const res = fb.decodeFromCanvas(this.canvas);
+                if (res && res.getText()) {
+                  barcodes = [{ rawValue: res.getText(), format: String(res.getBarcodeFormat()) }];
+                }
+              } catch {}
+            }
+          }
+        }
+      }
+
+      // Fase 3: Filtro Laplaciano de nitidez para corregir el desenfoque de foco fijo (típico en cámara frontal de tablet)
+      if (!barcodes || barcodes.length === 0) {
+        this.ctx.drawImage(this.video, sx, sy, sw, sh, 0, 0, rw, rh);
+        const sharpened = realzarNitidezLaplaciana(this.ctx, rw, rh);
+        if (sharpened) {
+          if (detector) {
+            try { barcodes = await detector.detect(this.canvas); } catch {}
+          }
+          if (!barcodes || barcodes.length === 0) {
+            const fb = getZxingFallback();
+            if (fb) {
+              try {
+                const res = fb.decodeFromCanvas(this.canvas);
+                if (res && res.getText()) {
+                  barcodes = [{ rawValue: res.getText(), format: String(res.getBarcodeFormat()) }];
+                }
+              } catch {}
+            }
+          }
+        }
+      }
+
+      // Fase 4: Sub-muestreo central (Zoom digital 1.5x) para códigos pequeños mantenidos a distancia focal óptima de la tablet
+      if (!barcodes || barcodes.length === 0) {
+        const cropW = Math.floor(sw * 0.65);
+        const cropH = Math.floor(sh * 0.65);
+        const cropX = sx + Math.floor((sw - cropW) / 2);
+        const cropY = sy + Math.floor((sh - cropH) / 2);
+        this.ctx.drawImage(this.video, cropX, cropY, cropW, cropH, 0, 0, rw, rh);
+        realzarContrasteBajaResolucion(this.ctx, rw, rh);
+        if (detector) {
+          try { barcodes = await detector.detect(this.canvas); } catch {}
+        }
+        if (!barcodes || barcodes.length === 0) {
+          realzarNitidezLaplaciana(this.ctx, rw, rh);
+          if (detector) {
+            try { barcodes = await detector.detect(this.canvas); } catch {}
+          }
+          if (!barcodes || barcodes.length === 0) {
             const fb = getZxingFallback();
             if (fb) {
               try {
@@ -315,6 +473,7 @@
   global.SkyPayScannerUtils = {
     solicitarStreamCamaraRobusto,
     realzarContrasteBajaResolucion,
+    realzarNitidezLaplaciana,
     getDetector,
     getZxingFallback
   };

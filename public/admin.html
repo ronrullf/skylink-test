@@ -140,6 +140,11 @@
       margin-bottom: 12px; border: 2px solid #1e293b;
     }
     .scanner-stage video { width: 100%; height: 100%; object-fit: cover; }
+    .scanner-stage video.camera-mirrored,
+    #adminScannerVideo.camera-mirrored {
+      transform: scaleX(-1);
+      -webkit-transform: scaleX(-1);
+    }
     .scanner-laser {
       position: absolute; left: 10%; right: 10%; height: 2px;
       background: linear-gradient(90deg, transparent, #22c55e, transparent);
@@ -399,6 +404,7 @@
             </div>
             <div style="display:flex; gap:6px;">
               <button type="button" class="btn btn-dark btn-sm" id="btnToggleAdminCam" onclick="toggleAdminCamera()">📷 Iniciar Cámara</button>
+              <button type="button" class="btn btn-outline btn-sm" id="btnAdminSwitchCam" onclick="switchAdminCamera()" title="Cambiar Cámara (Trasera / Frontal)">🔄 Girar</button>
               <button type="button" class="btn btn-outline btn-sm" id="btnAdminTorch" style="display:none;" onclick="toggleAdminTorch()">🔦</button>
             </div>
           </div>
@@ -1288,6 +1294,23 @@
       if (!adminScanner) return;
       const on = await adminScanner.toggleTorch();
       document.getElementById('btnAdminTorch').textContent = on ? '🔦 ON' : '🔦';
+    }
+
+    async function switchAdminCamera() {
+      if (!adminScanner) {
+        await toggleAdminCamera();
+        return;
+      }
+      const mode = await adminScanner.switchCamera();
+      const btn = document.getElementById('btnAdminSwitchCam');
+      if (btn) {
+        btn.textContent = mode === 'user' ? '📷 Frontal' : '🔄 Girar';
+        btn.classList.toggle('active', mode === 'user');
+      }
+      const btnTorch = document.getElementById('btnAdminTorch');
+      if (btnTorch) {
+        btnTorch.style.display = adminScanner.supportsTorch() ? 'inline-flex' : 'none';
+      }
     }
 
     async function manejarCodigoEscaneadoAdmin(code) {
