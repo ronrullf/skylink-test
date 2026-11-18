@@ -635,12 +635,14 @@ test('Commercial MVP: crypto encryption, Admin Auth, Cédula Express CRM, Evolut
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS public\.products/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS public\.orders/);
 
-  // 3. New 3-view sequential Cédula-first flow in datos-factura.html
+  // 3. New 3-view sequential Cédula-first flow in datos-factura.html (with zero manual verify button & active server watcher)
   assert.match(datosFacturaHtml, /id="cedulaStep"/);
   assert.match(datosFacturaHtml, /id="returningStep"/);
   assert.match(datosFacturaHtml, /id="invoiceStep"/);
   assert.match(datosFacturaHtml, /\/api\/customers\/by-cedula\//);
   assert.match(datosFacturaHtml, /id="returningPayButton"/);
+  assert.doesNotMatch(datosFacturaHtml, /btnVerifyNow/);
+  assert.match(datosFacturaHtml, /\/api\/watch-payment\//);
 
   // 4. Admin panel includes local scanner without external CDN, Evolution API, Resend, Skylink, and Company settings
   assert.match(adminHtml, /src="\/barcode-detector\.iife\.js"/);

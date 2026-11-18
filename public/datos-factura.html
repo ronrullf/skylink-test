@@ -208,10 +208,9 @@
         <strong id="paymentTotal">Bs. 0.00</strong>
       </div>
       <a class="primary" id="officialCheckout" target="_blank" rel="noopener noreferrer">Abrir Skylink Pay ↗</a>
-      <button class="secondary" id="btnVerifyNow" type="button" style="border-color:#16a34a; color:#15803d; background:#f0fdf4;">✅ Ya pagué — Verificar y enviar factura</button>
       <button class="secondary" id="toggleQr" type="button">Pagar desde otro teléfono con QR</button>
       <div class="qr" id="qrBox"><img id="qrImage" alt="Código QR para pagar con Skylink"></div>
-      <div class="monitor" id="paymentStatus"><span class="pulse"></span>Esperando confirmación del pago… (al terminar en Skylink regresa aquí)</div>
+      <div class="monitor" id="paymentStatus"><span class="pulse"></span>Esperando confirmación del pago… Te enviaremos tu factura al instante por WhatsApp y correo.</div>
       <p class="message error" id="paymentError" role="alert" hidden></p>
       <a class="back" href="/autopago">← Cancelar y volver al carrito</a>
     </section>
@@ -493,8 +492,25 @@
       });
     });
 
+    let serverWatcherTriggeredFor = '';
+    function triggerServerWatcher(orderId) {
+      if (!orderId || serverWatcherTriggeredFor === orderId) return;
+      serverWatcherTriggeredFor = orderId;
+      const url = `/api/watch-payment/${encodeURIComponent(orderId)}`;
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(url);
+        } else {
+          fetch(url, { method: 'POST', keepalive: true }).catch(() => {});
+        }
+      } catch {
+        fetch(url, { method: 'POST', keepalive: true }).catch(() => {});
+      }
+    }
+
     function showPaymentStep(name) {
       const paymentUrl = currentOrder.payment_url || currentOrder.skylink_url || currentOrder.paymentUrl;
+      const orderId = currentOrder.identifier || currentOrder.orderId;
       showOnlyStep('paymentStep');
       document.getElementById('stepInvoice').className = 'step done';
       document.getElementById('stepPayment').className = 'step active';
@@ -502,9 +518,17 @@
       document.getElementById('officialCheckout').href = paymentUrl;
       document.getElementById('qrImage').dataset.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(paymentUrl)}`;
       clearInterval(pollingTimer);
+      triggerServerWatcher(orderId);
       checkPaymentStatus();
       pollingTimer = setInterval(checkPaymentStatus, 1500);
     }
+
+    document.getElementById('officialCheckout').addEventListener('click', () => {
+      if (currentOrder) {
+        serverWatcherTriggeredFor = '';
+        triggerServerWatcher(currentOrder.identifier || currentOrder.orderId);
+      }
+    });
 
     document.getElementById('toggleQr').addEventListener('click', () => {
       const box = document.getElementById('qrBox');
@@ -513,19 +537,6 @@
       box.style.display = opening ? 'block' : 'none';
       if (opening && !image.src) image.src = image.dataset.src;
     });
-
-    const btnVerifyNow = document.getElementById('btnVerifyNow');
-    if (btnVerifyNow) {
-      btnVerifyNow.addEventListener('click', async () => {
-        btnVerifyNow.disabled = true;
-        btnVerifyNow.textContent = 'Verificando con Skylink…';
-        const paid = await checkPaymentStatus();
-        if (!paid) {
-          btnVerifyNow.disabled = false;
-          btnVerifyNow.textContent = '✅ Ya pagué — Verificar y enviar factura';
-        }
-      });
-    }
 
     let checkingInFlight = false;
     async function checkPaymentStatus() {

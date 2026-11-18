@@ -123,12 +123,14 @@ async function indexPayment(record) {
 }
 
 async function refreshPaymentStatus(record, settings = null) {
-  if (!record || !record.token || record.status !== 'pending') return record;
+  if (!record || !record.token || record.status !== 'pending') {
+    return { record, claimedPaid: false };
+  }
 
   const s = settings || await db.getStoreSettings();
   const skylinkOverride = buildSkylinkOverride(s);
   const result = await fetchSkylinkPay(`/api/v1/merchant/transactions/token/${record.token}`, 'GET', null, skylinkOverride);
-  if (!result.ok || !result.data) return record;
+  if (!result.ok || !result.data) return { record, claimedPaid: false };
 
   const transaction = result.data.data || result.data;
   const upstreamStatus = String(transaction.status || '').toUpperCase();
@@ -138,42 +140,64 @@ async function refreshPaymentStatus(record, settings = null) {
     resultCode === 'APPROVED';
 
   if (isApproved) {
-    record.status = 'paid';
-    record.reference =
+    const reference =
       transaction.bankReference ||
       transaction.bank_reference ||
       transaction.reference ||
       transaction.authorizationCode ||
       record.reference ||
       '';
-    record.paymentMethod = transaction.paymentMethod || transaction.payment_method || record.paymentMethod || 'Skylink Pay';
-    record.paidAt = transaction.paidAt || transaction.paid_at || transaction.transactionDate || new Date().toISOString();
-    await db.saveOrder(record);
+    const paymentMethod = transaction.paymentMethod || transaction.payment_method || record.paymentMethod || 'Skylink Pay';
+    const paidAt = transaction.paidAt || transaction.paid_at || transaction.transactionDate || new Date().toISOString();
+
+    const claimedPaid = await db.claimPendingOrderAsPaid(record.orderId || record.identifier, {
+      reference,
+      paymentMethod,
+      paidAt
+    });
+
+    record.status = 'paid';
+    record.reference = reference;
+    record.paymentMethod = paymentMethod;
+    record.paidAt = paidAt;
+    return { record, claimedPaid };
   } else if (['FAILED', 'REJECTED', 'CANCELLED', 'EXPIRED'].includes(upstreamStatus)) {
     record.status = 'failed';
     await db.saveOrder(record);
   }
-  return record;
+  return { record, claimedPaid: false };
 }
 
 /**
  * Sincroniza el estado de una orden con Skylink y despacha WhatsApp + Correo PDF EN PARALELO
- * apenas el pago queda confirmado (idempotente: nunca envía duplicados).
+ * apenas el pago queda confirmado (reclamo atómico: imposible enviar duplicados entre lambdas).
  */
 async function syncAndDispatchOrder(order, hostUrl = '', settings = null) {
   if (!order) return order;
   const s = settings || await db.getStoreSettings();
   const previousStatus = order.status;
-  try { await refreshPaymentStatus(order, s); } catch (e) {}
+  let claimedPaid = false;
+
+  try {
+    const refreshed = await refreshPaymentStatus(order, s);
+    claimedPaid = Boolean(refreshed && refreshed.claimedPaid);
+  } catch (e) {}
 
   const isPaid = order.status === 'paid';
   let mutated = previousStatus !== order.status;
 
-  if (previousStatus !== 'paid' && isPaid) {
+  if (claimedPaid) {
     dispatchOutboundWebhook('payment.success', order, s).catch(() => {});
   }
 
   if (!isPaid) return order;
+
+  // Si la orden pasó de pending -> paid pero OTRA lambda ganó el reclamo atómico, no duplicar envíos
+  if (previousStatus === 'pending' && !claimedPaid) {
+    const fresh = await db.getOrderByAnyKey(order.orderId || order.identifier);
+    if (fresh) Object.assign(order, fresh);
+    return order;
+  }
 
   const hasDispatchedWa = Boolean(order.whatsappDispatch && (
     order.whatsappDispatch.status === 'sent' ||
@@ -1159,13 +1183,24 @@ async function handleApi(req, res) {
       const sessionId = 'SES-' + Date.now();
       const skylinkOverride = buildSkylinkOverride(settings);
 
-      const skylinkRes = await fetchSkylinkPay('/api/v1/merchant/transactions', 'POST', {
+      const reqHost = req.headers && req.headers.host ? String(req.headers.host) : '';
+      const reqProto = (req.headers && req.headers['x-forwarded-proto']) || (reqHost.includes('localhost') ? 'http' : 'https');
+      const publicBase = reqHost && !reqHost.includes('localhost') ? `${reqProto}://${reqHost}` : '';
+
+      const txBody = {
         buyOrder: identifier,
         sessionId: sessionId,
         amount: amountCentimos,
         currency: 'VES',
         installments: 1
-      }, skylinkOverride);
+      };
+      // En producción enviamos returnUrl y webhookUrl oficiales para retorno/push instantáneo
+      if (!isTestEnv && publicBase) {
+        txBody.returnUrl = `${publicBase}/factura?order_id=${encodeURIComponent(identifier)}&auto_download=1`;
+        txBody.webhookUrl = `${publicBase}/api/webhooks/skylink`;
+      }
+
+      const skylinkRes = await fetchSkylinkPay('/api/v1/merchant/transactions', 'POST', txBody, skylinkOverride);
 
       const { token, skylinkPayUrl } = paymentFromResponse(skylinkRes, skylinkOverride);
 
@@ -1240,8 +1275,71 @@ async function handleApi(req, res) {
     }
 
     // ==========================================
-    // 8. CONSULTAR ESTADO DE ORDEN
+    // 8. VIGILANTE ACTIVO EN SERVIDOR (DESPACHO INSTANTÁNEO < 2s SIN DEPENDER DEL NAVEGADOR)
     // ==========================================
+    if (pathname.startsWith('/api/watch-payment/') && (req.method === 'POST' || req.method === 'GET')) {
+      const id = decodeURIComponent(pathname.split('/api/watch-payment/')[1] || '').trim();
+      const round = Math.max(1, Math.min(5, parseInt(parsedUrl.searchParams.get('round') || '1', 10) || 1));
+      const order = await db.getOrderByAnyKey(id);
+
+      if (!order) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Orden no encontrada' }));
+      }
+
+      // Seguridad: solo vigilar órdenes creadas en los últimos 10 minutos
+      const ageMs = Date.now() - new Date(order.createdAt || Date.now()).getTime();
+      if (ageMs > 10 * 60 * 1000 && order.status === 'pending') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, status: order.status, stopped: 'expired_window' }));
+      }
+
+      const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
+      const settings = await db.getStoreSettings();
+
+      // Vigilar activamente desde el servidor cada 2 segundos hasta 44s (maxDuration: 60s en Vercel)
+      const maxChecks = isTestEnv ? 1 : 22;
+      const intervalMs = isTestEnv ? 10 : 2000;
+      let checks = 0;
+
+      while (checks < maxChecks) {
+        checks++;
+        const freshOrder = await db.getOrderByAnyKey(id);
+        if (!freshOrder) break;
+        await syncAndDispatchOrder(freshOrder, hostUrl, settings);
+        if (freshOrder.status === 'paid' || freshOrder.status === 'failed') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({
+            success: true,
+            status: freshOrder.status,
+            checks,
+            round,
+            whatsappSent: Boolean(freshOrder.whatsappDispatch && freshOrder.whatsappDispatch.status === 'sent'),
+            emailSent: Boolean(freshOrder.emailDispatch && freshOrder.emailDispatch.success)
+          }));
+        }
+        if (checks < maxChecks) {
+          await new Promise(resolve => setTimeout(resolve, intervalMs));
+        }
+      }
+
+      // Si aún sigue pendiente y quedan relevos (hasta 5 rondas = ~3.7 min de vigilancia continua),
+      // auto-relevar en Vercel sin intervención del usuario ni de su navegador
+      if (!isTestEnv && round < 5 && hostUrl) {
+        try {
+          const ctrl = new AbortController();
+          setTimeout(() => ctrl.abort(), 500);
+          await fetch(`${hostUrl}/api/watch-payment/${encodeURIComponent(id)}?round=${round + 1}`, {
+            method: 'POST',
+            signal: ctrl.signal
+          }).catch(() => {});
+        } catch {}
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, status: 'pending', checks, round, relayed: round < 5 }));
+    }
+
     if (pathname === '/api/sync-pending-orders' && (req.method === 'GET' || req.method === 'POST')) {
       const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
       const summary = await syncAllPendingOrders(hostUrl);
