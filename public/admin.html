@@ -1017,10 +1017,19 @@
       window.location.reload();
     }
 
+    let adminSyncTimer = null;
     async function mostrarAppAdmin() {
       document.getElementById('adminLoginGate').style.display = 'none';
       document.getElementById('adminAppMain').style.display = 'block';
       await Promise.all([cargarConfigAdmin(), cargarCatalogo()]);
+      // Sincronizar automáticamente órdenes pendientes en segundo plano mientras /admin esté abierto
+      if (!adminSyncTimer) {
+        adminSyncTimer = setInterval(() => {
+          if (!document.hidden) {
+            fetch('/api/sync-pending-orders').catch(() => {});
+          }
+        }, 20000);
+      }
     }
 
     // =====================================================
@@ -1568,7 +1577,7 @@
     async function cargarOrdenes() {
       const tbody = document.getElementById('ordersTbody');
       try {
-        const res = await fetch('/api/orders');
+        const res = await fetch('/api/orders?sync=1');
         const json = await res.json();
         const list = json.data || [];
         if (list.length === 0) {

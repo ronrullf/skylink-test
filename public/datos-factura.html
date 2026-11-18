@@ -208,9 +208,10 @@
         <strong id="paymentTotal">Bs. 0.00</strong>
       </div>
       <a class="primary" id="officialCheckout" target="_blank" rel="noopener noreferrer">Abrir Skylink Pay ↗</a>
+      <button class="secondary" id="btnVerifyNow" type="button" style="border-color:#16a34a; color:#15803d; background:#f0fdf4;">✅ Ya pagué — Verificar y enviar factura</button>
       <button class="secondary" id="toggleQr" type="button">Pagar desde otro teléfono con QR</button>
       <div class="qr" id="qrBox"><img id="qrImage" alt="Código QR para pagar con Skylink"></div>
-      <div class="monitor" id="paymentStatus"><span class="pulse"></span>Esperando confirmación del pago…</div>
+      <div class="monitor" id="paymentStatus"><span class="pulse"></span>Esperando confirmación del pago… (al terminar en Skylink regresa aquí)</div>
       <p class="message error" id="paymentError" role="alert" hidden></p>
       <a class="back" href="/autopago">← Cancelar y volver al carrito</a>
     </section>
@@ -258,24 +259,51 @@
       return checkout && Array.isArray(checkout.items) && checkout.items.length > 0 && Number(checkout.totalBs) > 0;
     }
 
-    if (!validCheckout()) {
-      showOnlyStep('missingCart');
-    } else {
-      const units = checkout.items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
-      const countText = `${units} ${units === 1 ? 'producto' : 'productos'}`;
-      const totalText = money(checkout.totalBs);
-      for (const id of ['itemCountCedula', 'itemCountReturning', 'itemCount']) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = countText;
-      }
-      for (const id of ['orderTotalCedula', 'orderTotalReturning', 'orderTotal', 'paymentTotal']) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = totalText;
-      }
-      showOnlyStep('cedulaStep');
+    async function tryRestorePendingOrder() {
+      const savedOrderId = sessionStorage.getItem('skypayOrderId');
+      if (!savedOrderId) return false;
+      try {
+        const res = await fetch(`/api/order-status/${encodeURIComponent(savedOrderId)}`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          if (json.data.status === 'paid') {
+            sessionStorage.removeItem('skypayOrderId');
+            sessionStorage.removeItem('skypayCheckout');
+            window.location.href = `/factura?order_id=${encodeURIComponent(savedOrderId)}&auto_download=1`;
+            return true;
+          }
+          if (json.data.status === 'pending' && (json.data.paymentUrl || json.data.payment_url)) {
+            currentOrder = json.data;
+            document.getElementById('paymentTotal').textContent = money(json.data.amountBs ?? json.data.amountVes ?? 0);
+            showPaymentStep(json.data.clientName || 'Cliente');
+            return true;
+          }
+        }
+      } catch {}
+      sessionStorage.removeItem('skypayOrderId');
+      return false;
     }
 
-    loadStoreBrand();
+    (async function initFlow() {
+      loadStoreBrand();
+      if (!validCheckout()) {
+        const restored = await tryRestorePendingOrder();
+        if (!restored) showOnlyStep('missingCart');
+      } else {
+        const units = checkout.items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+        const countText = `${units} ${units === 1 ? 'producto' : 'productos'}`;
+        const totalText = money(checkout.totalBs);
+        for (const id of ['itemCountCedula', 'itemCountReturning', 'itemCount']) {
+          const el = document.getElementById(id);
+          if (el) el.textContent = countText;
+        }
+        for (const id of ['orderTotalCedula', 'orderTotalReturning', 'orderTotal', 'paymentTotal']) {
+          const el = document.getElementById(id);
+          if (el) el.textContent = totalText;
+        }
+        showOnlyStep('cedulaStep');
+      }
+    })();
 
     // Solo números en el campo de cédula del paso 2A y teléfono
     const lookupDigitsEl = document.getElementById('lookupCedulaDigits');
@@ -466,15 +494,16 @@
     });
 
     function showPaymentStep(name) {
-      const paymentUrl = currentOrder.payment_url || currentOrder.skylink_url;
+      const paymentUrl = currentOrder.payment_url || currentOrder.skylink_url || currentOrder.paymentUrl;
       showOnlyStep('paymentStep');
       document.getElementById('stepInvoice').className = 'step done';
       document.getElementById('stepPayment').className = 'step active';
       document.getElementById('payerName').textContent = name;
       document.getElementById('officialCheckout').href = paymentUrl;
       document.getElementById('qrImage').dataset.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(paymentUrl)}`;
+      clearInterval(pollingTimer);
       checkPaymentStatus();
-      pollingTimer = setInterval(checkPaymentStatus, 2000);
+      pollingTimer = setInterval(checkPaymentStatus, 1500);
     }
 
     document.getElementById('toggleQr').addEventListener('click', () => {
@@ -485,30 +514,57 @@
       if (opening && !image.src) image.src = image.dataset.src;
     });
 
+    const btnVerifyNow = document.getElementById('btnVerifyNow');
+    if (btnVerifyNow) {
+      btnVerifyNow.addEventListener('click', async () => {
+        btnVerifyNow.disabled = true;
+        btnVerifyNow.textContent = 'Verificando con Skylink…';
+        const paid = await checkPaymentStatus();
+        if (!paid) {
+          btnVerifyNow.disabled = false;
+          btnVerifyNow.textContent = '✅ Ya pagué — Verificar y enviar factura';
+        }
+      });
+    }
+
+    let checkingInFlight = false;
     async function checkPaymentStatus() {
-      if (!currentOrder) return;
+      if (!currentOrder || checkingInFlight) return false;
+      checkingInFlight = true;
       const id = currentOrder.identifier || currentOrder.orderId;
       try {
-        const response = await fetch(`/api/order-status/${encodeURIComponent(id)}`);
+        const response = await fetch(`/api/order-status/${encodeURIComponent(id)}`, { cache: 'no-store' });
         const json = await response.json();
-        if (!json.success || !json.data) return;
+        if (!json.success || !json.data) return false;
 
         if (json.data.status === 'paid') {
           clearInterval(pollingTimer);
           document.getElementById('paymentStatus').innerHTML = '✓ ¡Pago confirmado! Descargando tu factura y enviando por correo y WhatsApp…';
           sessionStorage.removeItem('skypayCheckout');
+          sessionStorage.removeItem('skypayOrderId');
           window.setTimeout(() => {
             window.location.href = `/factura?order_id=${encodeURIComponent(id)}&auto_download=1`;
-          }, 650);
+          }, 500);
+          return true;
         } else if (json.data.status === 'failed') {
           clearInterval(pollingTimer);
+          sessionStorage.removeItem('skypayOrderId');
           setError(document.getElementById('paymentError'), 'El pago fue rechazado. Regresa al carrito para intentarlo nuevamente.');
         }
-      } catch {}
+      } catch {} finally {
+        checkingInFlight = false;
+      }
+      return false;
     }
 
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && currentOrder) checkPaymentStatus();
+    });
+    window.addEventListener('focus', () => {
+      if (currentOrder) checkPaymentStatus();
+    });
+    window.addEventListener('pageshow', () => {
+      if (currentOrder) checkPaymentStatus();
     });
     window.addEventListener('beforeunload', () => clearInterval(pollingTimer));
   </script>

@@ -132,17 +132,123 @@ async function refreshPaymentStatus(record, settings = null) {
 
   const transaction = result.data.data || result.data;
   const upstreamStatus = String(transaction.status || '').toUpperCase();
-  if (['AUTHORIZED', 'PAID', 'SUCCESS', 'APPROVED'].includes(upstreamStatus)) {
+  const resultCode = String(transaction.resultCode || transaction.result_code || '').toUpperCase();
+  const isApproved =
+    ['AUTHORIZED', 'PAID', 'SUCCESS', 'APPROVED', 'COMPLETED'].includes(upstreamStatus) ||
+    resultCode === 'APPROVED';
+
+  if (isApproved) {
     record.status = 'paid';
-    record.reference = transaction.reference || transaction.authorizationCode || record.reference || '';
+    record.reference =
+      transaction.bankReference ||
+      transaction.bank_reference ||
+      transaction.reference ||
+      transaction.authorizationCode ||
+      record.reference ||
+      '';
     record.paymentMethod = transaction.paymentMethod || transaction.payment_method || record.paymentMethod || 'Skylink Pay';
-    record.paidAt = transaction.paidAt || transaction.paid_at || new Date().toISOString();
+    record.paidAt = transaction.paidAt || transaction.paid_at || transaction.transactionDate || new Date().toISOString();
     await db.saveOrder(record);
   } else if (['FAILED', 'REJECTED', 'CANCELLED', 'EXPIRED'].includes(upstreamStatus)) {
     record.status = 'failed';
     await db.saveOrder(record);
   }
   return record;
+}
+
+/**
+ * Sincroniza el estado de una orden con Skylink y despacha WhatsApp + Correo PDF EN PARALELO
+ * apenas el pago queda confirmado (idempotente: nunca envía duplicados).
+ */
+async function syncAndDispatchOrder(order, hostUrl = '', settings = null) {
+  if (!order) return order;
+  const s = settings || await db.getStoreSettings();
+  const previousStatus = order.status;
+  try { await refreshPaymentStatus(order, s); } catch (e) {}
+
+  const isPaid = order.status === 'paid';
+  let mutated = previousStatus !== order.status;
+
+  if (previousStatus !== 'paid' && isPaid) {
+    dispatchOutboundWebhook('payment.success', order, s).catch(() => {});
+  }
+
+  if (!isPaid) return order;
+
+  const hasDispatchedWa = Boolean(order.whatsappDispatch && (
+    order.whatsappDispatch.status === 'sent' ||
+    order.whatsappDispatch.provider === 'green-api' ||
+    order.whatsappDispatch.provider === 'evolution-api'
+  ));
+  const hasDispatchedEmail = Boolean(order.emailDispatch && (
+    order.emailDispatch.status === 'sent' ||
+    order.emailDispatch.provider === 'resend'
+  ));
+
+  const tasks = [];
+
+  if (!hasDispatchedWa && !order._dispatchingWhatsApp && (order.clientPhone || order.invoicePhone)) {
+    order._dispatchingWhatsApp = true;
+    tasks.push((async () => {
+      try {
+        console.log(`[SkyPay] Despachando automáticamente comprobante WhatsApp para orden ${order.orderId || order.identifier}...`);
+        order.whatsappDispatch = await sendInvoiceWhatsApp(order, { baseUrl: hostUrl, settings: s });
+        mutated = true;
+      } catch (waErr) {
+        console.error(`[SkyPay] Error en despacho WhatsApp orden ${order.orderId}:`, waErr.message);
+        order.whatsappDispatch = { success: false, error: waErr.message };
+        mutated = true;
+      } finally {
+        delete order._dispatchingWhatsApp;
+      }
+    })());
+  }
+
+  if (!hasDispatchedEmail && !order._dispatchingEmail && (order.clientEmail || order.invoiceEmail)) {
+    order._dispatchingEmail = true;
+    tasks.push((async () => {
+      try {
+        console.log(`[SkyPay] Despachando automáticamente factura PDF por correo (Resend) para orden ${order.orderId || order.identifier}...`);
+        order.emailDispatch = await sendInvoiceEmail(order, { baseUrl: hostUrl, settings: s });
+        mutated = true;
+      } catch (mailErr) {
+        console.error(`[SkyPay] Error en despacho Email orden ${order.orderId}:`, mailErr.message);
+        order.emailDispatch = { success: false, error: mailErr.message };
+        mutated = true;
+      } finally {
+        delete order._dispatchingEmail;
+      }
+    })());
+  }
+
+  if (tasks.length > 0) {
+    await Promise.all(tasks);
+  }
+
+  if (mutated) {
+    await db.saveOrder(order);
+  }
+
+  return order;
+}
+
+/**
+ * Barre todas las órdenes pendientes recientes en Supabase y despacha facturas de las ya pagadas,
+ * incluso si el comprador cerró su navegador o no volvió a la pestaña tras pagar en Skylink.
+ */
+async function syncAllPendingOrders(hostUrl = '') {
+  const pending = await db.listPendingOrders(45, 10);
+  if (!pending || pending.length === 0) return { checked: 0, paidNow: [] };
+  const settings = await db.getStoreSettings();
+  const paidNow = [];
+  await Promise.all(pending.map(async (ord) => {
+    const before = ord.status;
+    await syncAndDispatchOrder(ord, hostUrl, settings);
+    if (before !== 'paid' && ord.status === 'paid') {
+      paidNow.push(ord.orderId || ord.identifier);
+    }
+  }));
+  return { checked: pending.length, paidNow };
 }
 
 // Helper para calcular precio USD en base a Bs
@@ -1136,6 +1242,13 @@ async function handleApi(req, res) {
     // ==========================================
     // 8. CONSULTAR ESTADO DE ORDEN
     // ==========================================
+    if (pathname === '/api/sync-pending-orders' && (req.method === 'GET' || req.method === 'POST')) {
+      const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
+      const summary = await syncAllPendingOrders(hostUrl);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, data: summary }));
+    }
+
     if (pathname.startsWith('/api/order-status/') && req.method === 'GET') {
       const id = pathname.split('/api/order-status/')[1];
       const order = await db.getOrderByAnyKey(id);
@@ -1145,60 +1258,8 @@ async function handleApi(req, res) {
         return res.end(JSON.stringify({ success: false, message: 'Orden no encontrada' }));
       }
 
-      const settings = await db.getStoreSettings();
-      const previousStatus = order.status;
-      try { await refreshPaymentStatus(order, settings); } catch (e) {}
-      const isPaid = order.status === 'paid';
-      const hasDispatched = order.whatsappDispatch && (
-        order.whatsappDispatch.status === 'sent' ||
-        order.whatsappDispatch.provider === 'green-api' ||
-        order.whatsappDispatch.provider === 'evolution-api'
-      );
-
-      let orderMutated = previousStatus !== order.status;
-
-      if (previousStatus !== 'paid' && isPaid) {
-        await dispatchOutboundWebhook('payment.success', order, settings);
-      }
-
-      // Despacho inmediato y automático por WhatsApp vía Green API / Evolution API
-      if (isPaid && !hasDispatched && !order._dispatchingWhatsApp) {
-        order._dispatchingWhatsApp = true;
-        const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
-        try {
-          console.log(`[SkyPay] Despachando automáticamente comprobante WhatsApp para orden ${order.orderId || id}...`);
-          order.whatsappDispatch = await sendInvoiceWhatsApp(order, { baseUrl: hostUrl, settings });
-          orderMutated = true;
-        } catch (waErr) {
-          console.error(`[SkyPay] Error en despacho WhatsApp orden ${order.orderId || id}:`, waErr.message);
-          order.whatsappDispatch = { success: false, error: waErr.message };
-          orderMutated = true;
-        } finally {
-          delete order._dispatchingWhatsApp;
-        }
-      }
-
-      // Despacho inmediato y automático por Correo Electrónico vía Resend (con PDF adjunto)
-      const hasDispatchedEmail = order.emailDispatch && (order.emailDispatch.status === 'sent' || order.emailDispatch.provider === 'resend');
-      if (isPaid && !hasDispatchedEmail && !order._dispatchingEmail && (order.clientEmail || order.invoiceEmail)) {
-        order._dispatchingEmail = true;
-        const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
-        try {
-          console.log(`[SkyPay] Despachando automáticamente factura PDF por correo (Resend) para orden ${order.orderId || id}...`);
-          order.emailDispatch = await sendInvoiceEmail(order, { baseUrl: hostUrl, settings });
-          orderMutated = true;
-        } catch (mailErr) {
-          console.error(`[SkyPay] Error en despacho Email orden ${order.orderId || id}:`, mailErr.message);
-          order.emailDispatch = { success: false, error: mailErr.message };
-          orderMutated = true;
-        } finally {
-          delete order._dispatchingEmail;
-        }
-      }
-
-      if (orderMutated) {
-        await db.saveOrder(order);
-      }
+      const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
+      await syncAndDispatchOrder(order, hostUrl);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: true, data: order }));
@@ -1294,6 +1355,10 @@ async function handleApi(req, res) {
     // 9. LISTAR ÓRDENES
     // ==========================================
     if (pathname === '/api/orders' && req.method === 'GET') {
+      if (parsedUrl.searchParams.get('sync') === '1') {
+        const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
+        try { await syncAllPendingOrders(hostUrl); } catch (e) {}
+      }
       const list = await db.listOrders(60);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: true, data: list }));
