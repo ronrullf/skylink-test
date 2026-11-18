@@ -1275,11 +1275,12 @@ async function handleApi(req, res) {
     }
 
     // ==========================================
-    // 8. VIGILANTE ACTIVO EN SERVIDOR (DESPACHO INSTANTÁNEO < 2s SIN DEPENDER DEL NAVEGADOR)
+    // 8. VIGILANTE ACTIVO ADAPTATIVO EN SERVIDOR (15 MINUTOS: 2s primeros 4 min -> 5s hasta 15 min)
     // ==========================================
     if (pathname.startsWith('/api/watch-payment/') && (req.method === 'POST' || req.method === 'GET')) {
       const id = decodeURIComponent(pathname.split('/api/watch-payment/')[1] || '').trim();
-      const round = Math.max(1, Math.min(5, parseInt(parsedUrl.searchParams.get('round') || '1', 10) || 1));
+      const MAX_ROUNDS = 20; // Rondas 1-5 (~3.7m @ 2s) + Rondas 6-20 (~11.3m @ 5s) = ~15 minutos completos
+      const round = Math.max(1, Math.min(MAX_ROUNDS, parseInt(parsedUrl.searchParams.get('round') || '1', 10) || 1));
       const order = await db.getOrderByAnyKey(id);
 
       if (!order) {
@@ -1287,9 +1288,9 @@ async function handleApi(req, res) {
         return res.end(JSON.stringify({ success: false, message: 'Orden no encontrada' }));
       }
 
-      // Seguridad: solo vigilar órdenes creadas en los últimos 10 minutos
+      // Seguridad: vigilar hasta 16 minutos (vida útil completa del link de Skylink)
       const ageMs = Date.now() - new Date(order.createdAt || Date.now()).getTime();
-      if (ageMs > 10 * 60 * 1000 && order.status === 'pending') {
+      if (ageMs > 16 * 60 * 1000 && order.status === 'pending') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: true, status: order.status, stopped: 'expired_window' }));
       }
@@ -1297,9 +1298,12 @@ async function handleApi(req, res) {
       const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
       const settings = await db.getStoreSettings();
 
-      // Vigilar activamente desde el servidor cada 2 segundos hasta 44s (maxDuration: 60s en Vercel)
-      const maxChecks = isTestEnv ? 1 : 22;
-      const intervalMs = isTestEnv ? 10 : 2000;
+      // Adaptativo:
+      // - Rondas 1..5 (minutos 0 a ~4): cada 2s (22 checks = ~44s) -> ultra-instantáneo
+      // - Rondas 6..20 (minutos 4 a 15): cada 5s (9 checks = ~45s) -> eficiente hasta expiración
+      const isFastPhase = round <= 5;
+      const maxChecks = isTestEnv ? 1 : (isFastPhase ? 22 : 9);
+      const intervalMs = isTestEnv ? 10 : (isFastPhase ? 2000 : 5000);
       let checks = 0;
 
       while (checks < maxChecks) {
@@ -1314,6 +1318,7 @@ async function handleApi(req, res) {
             status: freshOrder.status,
             checks,
             round,
+            phase: isFastPhase ? 'fast_2s' : 'extended_5s',
             whatsappSent: Boolean(freshOrder.whatsappDispatch && freshOrder.whatsappDispatch.status === 'sent'),
             emailSent: Boolean(freshOrder.emailDispatch && freshOrder.emailDispatch.success)
           }));
@@ -1323,9 +1328,9 @@ async function handleApi(req, res) {
         }
       }
 
-      // Si aún sigue pendiente y quedan relevos (hasta 5 rondas = ~3.7 min de vigilancia continua),
-      // auto-relevar en Vercel sin intervención del usuario ni de su navegador
-      if (!isTestEnv && round < 5 && hostUrl) {
+      // Auto-relevo automático hasta 15 minutos continuos sin depender del navegador del cliente
+      const shouldRelay = !isTestEnv && round < MAX_ROUNDS && hostUrl && (Date.now() - new Date(order.createdAt || Date.now()).getTime() < 15.5 * 60 * 1000);
+      if (shouldRelay) {
         try {
           const ctrl = new AbortController();
           setTimeout(() => ctrl.abort(), 500);
@@ -1337,7 +1342,14 @@ async function handleApi(req, res) {
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, status: 'pending', checks, round, relayed: round < 5 }));
+      return res.end(JSON.stringify({
+        success: true,
+        status: 'pending',
+        checks,
+        round,
+        phase: isFastPhase ? 'fast_2s' : 'extended_5s',
+        relayed: Boolean(shouldRelay)
+      }));
     }
 
     if (pathname === '/api/sync-pending-orders' && (req.method === 'GET' || req.method === 'POST')) {
