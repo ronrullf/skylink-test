@@ -677,6 +677,15 @@ async function handleApi(req, res) {
         }));
       }
 
+      // Validación de Correo Electrónico obligatorio
+      if (!invoiceEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invoiceEmail)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          message: 'El correo electrónico es obligatorio (ej: tu-correo@gmail.com).'
+        }));
+      }
+
       // Validación de Teléfono / WhatsApp obligatorio (solo números, 10 a 15 dígitos)
       const cleanPhone = normalizePhone(rawPhone);
       const isDigitsOnly = /^\d+$/.test(rawPhone.replace(/[\s+-]/g, ''));

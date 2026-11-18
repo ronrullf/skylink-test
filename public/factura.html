@@ -361,10 +361,12 @@
 
       <!-- Respaldo Skylink Pay -->
       <div class="bank-info-grid">
+        <div><strong>NOMBRE:</strong> <span id="bankPayerVal">Cliente</span></div>
+        <div><strong>CORREO:</strong> <span id="bankEmailVal">No registrado</span></div>
         <div><strong>PASARELA:</strong> Skylink Pay</div>
         <div><strong>REF. PAGO:</strong> <span id="bankRefVal">SK-98745210</span></div>
         <div><strong>MÉTODO:</strong> <span id="bankMethodVal">Pago Móvil C2P</span></div>
-        <div><strong>PAGADOR:</strong> <span id="bankPayerVal">Cliente</span></div>
+        <div><strong>WHATSAPP:</strong> <span id="bankPhoneVal">No registrado</span></div>
       </div>
     </div>
 
@@ -456,6 +458,7 @@
       const orderNum = order.orderId || order.identifier || orderId || 'AUTO';
       const dateStr = new Date(order.paidAt || order.createdAt || Date.now()).toLocaleString('es-VE');
       const client = order.clientName || order.invoice?.name || 'Cliente';
+      const email = order.clientEmail || order.invoiceEmail || order.invoice?.email || 'No registrado';
       const phone = order.clientPhone || order.invoicePhone || 'No registrado';
       const idNum = order.clientId || order.invoice?.idNumber || 'V-00000000';
       const ref = order.reference || 'SK-CONFIRMADA';
@@ -478,7 +481,9 @@
         '0 -16 Td',
         '(' + sanitizePdfText('Fecha: ' + dateStr) + ') Tj',
         '0 -16 Td',
-        '(' + sanitizePdfText('Cliente: ' + client) + ') Tj',
+        '(' + sanitizePdfText('Nombre: ' + client) + ') Tj',
+        '0 -16 Td',
+        '(' + sanitizePdfText('Correo: ' + email) + ') Tj',
         '0 -16 Td',
         '(' + sanitizePdfText('WhatsApp / Telefono: ' + phone) + ') Tj',
         '0 -16 Td',
@@ -631,7 +636,11 @@
 
         document.getElementById('bankRefVal').textContent = currentOrder.reference || 'Confirmada por Skylink Pay';
         document.getElementById('bankMethodVal').textContent = currentOrder.paymentMethod || 'Skylink Pay';
-        document.getElementById('bankPayerVal').textContent = `${currentOrder.clientName || 'Cliente'} · ${currentOrder.clientId || ''}`;
+        document.getElementById('bankPayerVal').textContent = `${currentOrder.clientName || 'Cliente'}${currentOrder.clientId ? ' · ' + currentOrder.clientId : ''}`;
+        const bankEmailEl = document.getElementById('bankEmailVal');
+        if (bankEmailEl) bankEmailEl.textContent = currentOrder.clientEmail || currentOrder.invoiceEmail || 'No registrado';
+        const bankPhoneEl = document.getElementById('bankPhoneVal');
+        if (bankPhoneEl) bankPhoneEl.textContent = currentOrder.clientPhone || currentOrder.invoicePhone || 'No registrado';
 
         document.getElementById('shipRecipient').value = currentOrder.clientName || '';
         document.getElementById('shipPhone').value = currentOrder.clientPhone || '';
