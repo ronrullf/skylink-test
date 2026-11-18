@@ -3,39 +3,53 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>Datos de factura · SkyPay</title>
+  <title>Identificación & Factura · SkyPay</title>
   <style>
     :root { color-scheme: light; --ink:#10241c; --muted:#66756e; --line:#dce5df; --soft:#f4f8f5; --accent:#21543d; --danger:#9b3d2c; }
     * { box-sizing:border-box; }
     body { margin:0; min-height:100vh; font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:#f5f7f5; }
-    button,input,a { font:inherit; }
+    button,input,select,a { font:inherit; }
     .shell { width:min(100% - 28px,680px); margin:0 auto; padding:28px 0 46px; }
     .brand { display:flex; align-items:center; gap:10px; color:var(--ink); text-decoration:none; font-weight:800; margin-bottom:24px; }
-    .brand-mark { width:38px; height:38px; display:grid; place-items:center; border-radius:11px; background:#0f1d2f; color:#fff; font-size:21px; }
+    .brand-mark { width:38px; height:38px; display:grid; place-items:center; border-radius:11px; background:#0f1d2f; color:#fff; font-size:21px; overflow:hidden; }
+    .brand-mark img { width:100%; height:100%; object-fit:cover; }
     .steps { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:18px; }
     .step { padding:9px 5px; border-radius:9px; background:#e8ede9; color:#6c7972; text-align:center; font-size:11px; font-weight:700; }
     .step.done { color:#2d6249; background:#e3f1e8; }
     .step.active { color:#fff; background:var(--accent); }
     .card { background:#fff; border:1px solid var(--line); border-radius:20px; padding:clamp(22px,5vw,36px); box-shadow:0 16px 45px rgba(25,50,37,.07); }
     .eyebrow { margin:0 0 8px; color:#39755a; font-size:11px; font-weight:800; letter-spacing:1.3px; text-transform:uppercase; }
-    h1 { margin:0; font-size:clamp(25px,6vw,34px); line-height:1.15; letter-spacing:-.8px; }
-    .intro { margin:10px 0 24px; color:var(--muted); }
-    .summary { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px; margin-bottom:24px; border:1px solid var(--line); border-radius:13px; background:var(--soft); }
+    h1 { margin:0; font-size:clamp(24px,6vw,32px); line-height:1.15; letter-spacing:-.8px; }
+    .intro { margin:10px 0 22px; color:var(--muted); }
+    .summary { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px; margin-bottom:22px; border:1px solid var(--line); border-radius:13px; background:var(--soft); }
     .summary small { display:block; color:var(--muted); }
     .summary strong { font-size:22px; white-space:nowrap; }
     .field { margin-bottom:16px; }
     label { display:block; margin-bottom:6px; font-size:12px; font-weight:750; }
-    input { width:100%; min-height:50px; padding:12px 14px; border:1px solid #cbd7cf; border-radius:10px; color:var(--ink); background:#fff; outline:none; }
-    input:focus { border-color:#4b8067; box-shadow:0 0 0 3px #dcece3; }
-    .hint { margin:-8px 0 20px; color:var(--muted); font-size:12px; }
-    .primary,.secondary { width:100%; min-height:52px; border-radius:10px; display:flex; align-items:center; justify-content:center; border:0; text-decoration:none; cursor:pointer; font-weight:750; }
+    input,select { width:100%; min-height:50px; padding:12px 14px; border:1px solid #cbd7cf; border-radius:10px; color:var(--ink); background:#fff; outline:none; }
+    input:focus,select:focus { border-color:#4b8067; box-shadow:0 0 0 3px #dcece3; }
+    .cedula-group { display:grid; grid-template-columns:86px 1fr; gap:10px; }
+    .cedula-group select { font-weight:800; text-align:center; font-size:17px; }
+    .cedula-group input { font-size:20px; font-weight:700; letter-spacing:0.6px; }
+    .hint { margin:6px 0 0; color:var(--muted); font-size:12px; }
+    .primary,.secondary,.ghost-link { width:100%; min-height:52px; border-radius:10px; display:flex; align-items:center; justify-content:center; border:0; text-decoration:none; cursor:pointer; font-weight:750; }
     .primary { color:#fff; background:var(--accent); }
     .primary:hover { background:#173d2c; }
     .primary:disabled { opacity:.58; cursor:wait; }
     .secondary { margin-top:10px; color:var(--ink); border:1px solid var(--line); background:#fff; }
-    .back { display:inline-flex; margin-top:18px; color:var(--muted); text-decoration:none; font-size:13px; }
+    .secondary:hover { background:#f8faf9; }
+    .back { display:inline-flex; margin-top:18px; color:var(--muted); text-decoration:none; font-size:13px; background:none; border:0; padding:0; cursor:pointer; }
+    .back:hover { color:var(--ink); }
     .message { margin:14px 0 0; padding:11px 13px; border-radius:9px; font-size:13px; }
     .error { color:var(--danger); border:1px solid #efd3ca; background:#fff2ee; }
+    .info-pill { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; background:#dcfce7; color:#166534; font-size:12px; font-weight:750; margin-bottom:14px; }
+    .profile-box { border:1.5px solid #bbf7d0; background:#f0fdf4; border-radius:14px; padding:18px; margin-bottom:20px; }
+    .profile-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:8px 0; border-bottom:1px dashed #bbf7d0; font-size:14px; }
+    .profile-row:last-child { border-bottom:none; padding-bottom:0; }
+    .profile-row span { color:#4d6b59; font-size:12px; font-weight:600; }
+    .profile-row strong { color:#0f291c; text-align:right; word-break:break-word; }
+    .actions-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+    .actions-row .secondary { margin-top:0; min-height:44px; font-size:13px; }
     .monitor { margin:18px 0 0; padding:15px; border:1px solid #cae0d3; border-radius:12px; background:#f1f8f4; text-align:center; color:#2f624a; font-size:13px; }
     .pulse { display:inline-block; width:8px; height:8px; margin-right:7px; border-radius:50%; background:#28a267; animation:pulse 1.4s infinite; }
     @keyframes pulse { 50% { opacity:.3; transform:scale(.78); } }
@@ -49,36 +63,38 @@
       .step { font-size:9px; padding:8px 2px; }
       .card { border-radius:16px; padding:22px 18px; }
       .summary { align-items:flex-start; flex-direction:column; gap:5px; }
+      .actions-row { grid-template-columns:1fr; }
     }
     @media (max-height: 850px) {
       .shell { padding: 10px 0 16px; }
       .brand { margin-bottom: 10px; }
       .steps { margin-bottom: 10px; }
-      .card { padding: 16px 20px; border-radius: 16px; }
-      .eyebrow { margin-bottom: 3px; font-size: 10px; }
-      h1 { font-size: clamp(19px, 3.5vw, 24px); margin-bottom: 3px; }
-      .intro { margin: 3px 0 10px; font-size: 12px; }
-      .summary { padding: 8px 12px; margin-bottom: 10px; }
+      .card { padding: 18px 20px; border-radius: 16px; }
+      h1 { font-size: clamp(20px, 3.8vw, 26px); margin-bottom: 3px; }
+      .intro { margin: 4px 0 12px; font-size: 13px; }
+      .summary { padding: 10px 14px; margin-bottom: 14px; }
       .summary strong { font-size: 19px; }
-      .field { margin-bottom: 8px; }
-      label { margin-bottom: 4px; font-size: 11px; }
-      input { min-height: 42px; padding: 8px 12px; font-size: 14px; }
-      .hint { margin: -4px 0 10px; font-size: 11px; }
+      .field { margin-bottom: 10px; }
+      input, select { min-height: 44px; padding: 8px 12px; }
       .primary, .secondary { min-height: 46px; }
     }
   </style>
 </head>
 <body>
   <main class="shell">
-    <a class="brand" href="/autopago"><span class="brand-mark">⚡</span><span>SkyPay Autopago</span></a>
+    <a class="brand" href="/autopago">
+      <span class="brand-mark" id="brandMark">⚡</span>
+      <span id="brandStoreName">SkyPay Autopago</span>
+    </a>
 
     <nav class="steps" aria-label="Progreso de compra">
       <div class="step done">1. Productos</div>
-      <div class="step active" id="stepInvoice">2. Datos</div>
+      <div class="step active" id="stepInvoice">2. Identificación</div>
       <div class="step" id="stepPayment">3. Pago</div>
       <div class="step">4. Factura</div>
     </nav>
 
+    <!-- SIN PRODUCTOS EN CARRITO -->
     <section class="card" id="missingCart" hidden>
       <p class="eyebrow">Tu compra</p>
       <h1>No hay productos seleccionados</h1>
@@ -86,10 +102,69 @@
       <a class="primary" href="/autopago">Elegir productos</a>
     </section>
 
-    <section class="card" id="invoiceStep">
-      <p class="eyebrow">Paso 2 de 4</p>
-      <h1>Datos para tu factura</h1>
-      <p class="intro">Ingresa tu nombre, correo electrónico, número de WhatsApp y cédula. Al confirmarse el pago se te enviará la factura automáticamente.</p>
+    <!-- VISTA 2A: VENTANA ÚNICA DE CÉDULA (PRIMER PASO AL HACER CLIC EN PAGAR) -->
+    <section class="card" id="cedulaStep">
+      <p class="eyebrow">Paso 2 de 4 · Cédula Express</p>
+      <h1>Ingresa tu Cédula</h1>
+      <p class="intro">Si ya compraste antes con nosotros, cargaremos todos tus datos automáticamente.</p>
+
+      <div class="summary">
+        <div><small id="itemCountCedula">0 productos</small><span>Total de la compra</span></div>
+        <strong id="orderTotalCedula">Bs. 0.00</strong>
+      </div>
+
+      <form id="cedulaLookupForm" novalidate>
+        <div class="field">
+          <label for="lookupCedulaDigits">Cédula o RIF *</label>
+          <div class="cedula-group">
+            <select id="lookupCedulaPrefix" aria-label="Tipo de documento">
+              <option value="V" selected>V-</option>
+              <option value="E">E-</option>
+              <option value="J">J-</option>
+              <option value="G">G-</option>
+            </select>
+            <input id="lookupCedulaDigits" type="tel" inputmode="numeric" maxlength="10" placeholder="Ej: 12345678" autocomplete="off" required autofocus>
+          </div>
+          <p class="hint">Introduce solo los números de tu cédula y pulsa Continuar.</p>
+        </div>
+
+        <button class="primary" id="lookupButton" type="submit">Continuar →</button>
+        <p class="message error" id="lookupError" role="alert" hidden></p>
+      </form>
+      <a class="back" href="/autopago">← Volver a productos</a>
+    </section>
+
+    <!-- VISTA 2B: USUARIO REGISTRADO (DATOS PRECARGADOS LISTOS PARA PAGAR) -->
+    <section class="card" id="returningStep" hidden>
+      <div class="info-pill">✓ Cliente reconocido automáticamente</div>
+      <h1 id="returningGreeting">¡Hola de nuevo!</h1>
+      <p class="intro">Tus datos ya están guardados. Verifica que sean correctos y continúa directo al pago.</p>
+
+      <div class="summary">
+        <div><small id="itemCountReturning">0 productos</small><span>Total a pagar</span></div>
+        <strong id="orderTotalReturning">Bs. 0.00</strong>
+      </div>
+
+      <div class="profile-box">
+        <div class="profile-row"><span>Nombre</span><strong id="retName">—</strong></div>
+        <div class="profile-row"><span>Cédula / RIF</span><strong id="retCedula">—</strong></div>
+        <div class="profile-row"><span>Correo Electrónico</span><strong id="retEmail">—</strong></div>
+        <div class="profile-row"><span>WhatsApp</span><strong id="retPhone">—</strong></div>
+      </div>
+
+      <button class="primary" id="returningPayButton" type="button">Pagar ahora →</button>
+      <div class="actions-row">
+        <button class="secondary" id="btnEditReturning" type="button">✏️ Editar mis datos</button>
+        <button class="secondary" id="btnSwitchCedula" type="button">🔄 Usar otra cédula</button>
+      </div>
+      <p class="message error" id="returningError" role="alert" hidden></p>
+    </section>
+
+    <!-- VISTA 2C: PANTALLA CLÁSICA (PRIMERA VEZ O EDICIÓN DE DATOS) -->
+    <section class="card" id="invoiceStep" hidden>
+      <p class="eyebrow" id="invoiceStepEyebrow">Primera vez · Registro único</p>
+      <h1 id="invoiceStepTitle">Datos para tu factura</h1>
+      <p class="intro" id="invoiceStepIntro">Solo te pediremos estos datos esta primera vez. En tus próximas compras bastará con tu cédula.</p>
 
       <div class="summary">
         <div><small id="itemCount">0 productos</small><span>Total de la compra</span></div>
@@ -115,12 +190,13 @@
           <label for="invoiceId">Cédula o RIF *</label>
           <input id="invoiceId" name="invoiceId" maxlength="15" placeholder="Ej: V-12345678" required>
         </div>
-        <button class="primary" id="continueButton" type="submit">Continuar al pago</button>
+        <button class="primary" id="continueButton" type="submit">Guardar datos y continuar al pago →</button>
         <p class="message error" id="formError" role="alert" hidden></p>
       </form>
-      <a class="back" href="/autopago">← Volver a productos</a>
+      <button type="button" class="back" id="btnBackToCedula">← Cambiar cédula</button>
     </section>
 
+    <!-- PASO 3: PANTALLA DE PAGO SKYLINK -->
     <section class="card" id="paymentStep" hidden>
       <p class="eyebrow">Paso 3 de 4</p>
       <h1>Completa el pago</h1>
@@ -144,6 +220,7 @@
       catch { return null; }
     })();
     let currentOrder = null;
+    let recognizedCustomer = null;
     let pollingTimer = null;
 
     const money = value => `Bs. ${Number(value || 0).toFixed(2)}`;
@@ -152,21 +229,59 @@
       element.hidden = !message;
     };
 
+    function showOnlyStep(stepId) {
+      for (const id of ['missingCart', 'cedulaStep', 'returningStep', 'invoiceStep', 'paymentStep']) {
+        const el = document.getElementById(id);
+        if (el) el.hidden = (id !== stepId);
+      }
+    }
+
+    // Cargar marca dinámica de la tienda configurada en /admin
+    async function loadStoreBrand() {
+      try {
+        const res = await fetch('/api/public-config');
+        const json = await res.json();
+        if (json.success && json.data) {
+          const name = json.data.storeName || 'SkyPay Autopago';
+          document.getElementById('brandStoreName').textContent = name;
+          document.title = `Identificación & Factura · ${name}`;
+          if (json.data.storeLogoUrl) {
+            document.getElementById('brandMark').innerHTML = `<img src="${json.data.storeLogoUrl}" alt="${name}">`;
+          }
+        }
+      } catch {}
+    }
+
     function validCheckout() {
       return checkout && Array.isArray(checkout.items) && checkout.items.length > 0 && Number(checkout.totalBs) > 0;
     }
 
     if (!validCheckout()) {
-      document.getElementById('invoiceStep').hidden = true;
-      document.getElementById('missingCart').hidden = false;
+      showOnlyStep('missingCart');
     } else {
       const units = checkout.items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
-      document.getElementById('itemCount').textContent = `${units} ${units === 1 ? 'producto' : 'productos'}`;
-      document.getElementById('orderTotal').textContent = money(checkout.totalBs);
-      document.getElementById('paymentTotal').textContent = money(checkout.totalBs);
+      const countText = `${units} ${units === 1 ? 'producto' : 'productos'}`;
+      const totalText = money(checkout.totalBs);
+      for (const id of ['itemCountCedula', 'itemCountReturning', 'itemCount']) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = countText;
+      }
+      for (const id of ['orderTotalCedula', 'orderTotalReturning', 'orderTotal', 'paymentTotal']) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = totalText;
+      }
+      showOnlyStep('cedulaStep');
     }
 
-    // Restricción estricta de solo números en el campo de WhatsApp
+    loadStoreBrand();
+
+    // Solo números en el campo de cédula del paso 2A y teléfono
+    const lookupDigitsEl = document.getElementById('lookupCedulaDigits');
+    if (lookupDigitsEl) {
+      lookupDigitsEl.addEventListener('input', e => {
+        e.target.value = e.target.value.replace(/\D/g, '');
+      });
+    }
     const phoneInput = document.getElementById('invoicePhone');
     if (phoneInput) {
       phoneInput.addEventListener('input', e => {
@@ -177,16 +292,133 @@
       });
     }
 
-    function invoiceIsValid(name, phone, idNumber, email) {
-      const cleanPhone = (phone || '').replace(/\D/g, '');
-      const nameValid = (name || '').trim().length >= 2;
-      const phoneValid = cleanPhone.length >= 10 && cleanPhone.length <= 15;
-      const cleanId = (idNumber || '').trim();
-      const idValid = /^(?:[VEJG]-?)?\d{5,10}$/i.test(cleanId);
-      const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email || '').trim());
-      return nameValid && phoneValid && idValid && emailValid;
+    // PASO 2A: Búsqueda automática en Supabase por Cédula
+    document.getElementById('cedulaLookupForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      const prefix = document.getElementById('lookupCedulaPrefix').value || 'V';
+      const digits = (document.getElementById('lookupCedulaDigits').value || '').replace(/\D/g, '');
+      const errorBox = document.getElementById('lookupError');
+      const btn = document.getElementById('lookupButton');
+
+      if (digits.length < 5 || digits.length > 10) {
+        setError(errorBox, 'Ingresa un número de cédula válido (entre 5 y 10 dígitos).');
+        return;
+      }
+
+      const fullCedula = `${prefix}-${digits}`;
+      setError(errorBox, '');
+      btn.disabled = true;
+      btn.textContent = 'Verificando cédula…';
+
+      try {
+        const res = await fetch(`/api/customers/by-cedula/${encodeURIComponent(fullCedula)}`);
+        const json = await res.json();
+
+        if (json.success && json.found && json.customer) {
+          recognizedCustomer = json.customer;
+          document.getElementById('returningGreeting').textContent = `¡Hola, ${json.customer.fullName.split(' ')[0]}!`;
+          document.getElementById('retName').textContent = json.customer.fullName;
+          document.getElementById('retCedula').textContent = json.customer.cedula;
+          document.getElementById('retEmail').textContent = json.customer.email;
+          document.getElementById('retPhone').textContent = json.customer.phone ? `+${json.customer.phone}` : 'No registrado';
+          showOnlyStep('returningStep');
+        } else {
+          // Usuario NO registrado: ir a la pantalla clásica con la cédula precargada
+          recognizedCustomer = null;
+          document.getElementById('invoiceStepEyebrow').textContent = 'Primera vez · Registro único';
+          document.getElementById('invoiceStepTitle').textContent = 'Completa tus datos por primera vez';
+          document.getElementById('invoiceStepIntro').textContent = 'Guardaremos tus datos de forma segura. En tu próxima compra solo necesitarás colocar tu cédula.';
+          document.getElementById('invoiceId').value = fullCedula;
+          document.getElementById('invoiceName').value = '';
+          document.getElementById('invoiceEmail').value = '';
+          document.getElementById('invoicePhone').value = '';
+          showOnlyStep('invoiceStep');
+          setTimeout(() => document.getElementById('invoiceName').focus(), 100);
+        }
+      } catch (err) {
+        // Si falla la red, permitir continuar al formulario clásico sin bloquear al cliente
+        document.getElementById('invoiceId').value = fullCedula;
+        showOnlyStep('invoiceStep');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Continuar →';
+      }
+    });
+
+    // Botones de navegación entre vistas
+    document.getElementById('btnSwitchCedula').addEventListener('click', () => {
+      recognizedCustomer = null;
+      showOnlyStep('cedulaStep');
+      setTimeout(() => lookupDigitsEl.focus(), 100);
+    });
+    document.getElementById('btnBackToCedula').addEventListener('click', () => {
+      showOnlyStep('cedulaStep');
+      setTimeout(() => lookupDigitsEl.focus(), 100);
+    });
+    document.getElementById('btnEditReturning').addEventListener('click', () => {
+      if (!recognizedCustomer) return;
+      document.getElementById('invoiceStepEyebrow').textContent = 'Actualizar mis datos';
+      document.getElementById('invoiceStepTitle').textContent = 'Edita tus datos de factura';
+      document.getElementById('invoiceStepIntro').textContent = 'Cualquier cambio quedará guardado automáticamente para tu próxima compra.';
+      document.getElementById('invoiceName').value = recognizedCustomer.fullName || '';
+      document.getElementById('invoiceEmail').value = recognizedCustomer.email || '';
+      document.getElementById('invoicePhone').value = recognizedCustomer.phone || '';
+      document.getElementById('invoiceId').value = recognizedCustomer.cedula || '';
+      showOnlyStep('invoiceStep');
+    });
+
+    // Crear transacción oficial Skylink (usado tanto por cliente reconocido como por registro nuevo)
+    async function crearTransaccionSkylink({ name, email, phone, idNumber, buttonEl, errorBoxEl, idleLabel }) {
+      setError(errorBoxEl, '');
+      buttonEl.disabled = true;
+      buttonEl.textContent = 'Conectando con Skylink…';
+
+      try {
+        const response = await fetch('/api/create-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amountBs: checkout.totalBs,
+            description: `Kiosco (${checkout.items.length} productos)`,
+            items: checkout.items,
+            invoiceName: name,
+            invoicePhone: phone,
+            clientPhone: phone,
+            invoiceId: idNumber,
+            invoiceEmail: email,
+            clientEmail: email
+          })
+        });
+        const json = await response.json();
+        if (!response.ok || !json.success || !json.data) {
+          throw new Error(json.message || 'No se pudo iniciar el pago con Skylink.');
+        }
+
+        currentOrder = json.data;
+        sessionStorage.setItem('skypayOrderId', currentOrder.identifier || currentOrder.orderId);
+        showPaymentStep(name);
+      } catch (error) {
+        setError(errorBoxEl, error.message);
+        buttonEl.disabled = false;
+        buttonEl.textContent = idleLabel;
+      }
     }
 
+    // PASO 2B: Cliente ya registrado hace clic directo en "Pagar ahora"
+    document.getElementById('returningPayButton').addEventListener('click', async () => {
+      if (!recognizedCustomer) return;
+      await crearTransaccionSkylink({
+        name: recognizedCustomer.fullName,
+        email: recognizedCustomer.email,
+        phone: recognizedCustomer.phone,
+        idNumber: recognizedCustomer.cedula,
+        buttonEl: document.getElementById('returningPayButton'),
+        errorBoxEl: document.getElementById('returningError'),
+        idleLabel: 'Pagar ahora →'
+      });
+    });
+
+    // PASO 2C: Cliente nuevo (o editando datos) completa el formulario clásico
     document.getElementById('invoiceForm').addEventListener('submit', async event => {
       event.preventDefault();
       const name = document.getElementById('invoiceName').value.trim();
@@ -220,45 +452,20 @@
         idNumber = 'V-' + idNumber;
       }
 
-      setError(errorBox, '');
-      button.disabled = true;
-      button.textContent = 'Conectando con Skylink…';
-
-      try {
-        const response = await fetch('/api/create-payment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amountBs: checkout.totalBs,
-            description: `Kiosco (${checkout.items.length} productos)`,
-            items: checkout.items,
-            invoiceName: name,
-            invoicePhone: phone,
-            clientPhone: phone,
-            invoiceId: idNumber,
-            invoiceEmail: email,
-            clientEmail: email
-          })
-        });
-        const json = await response.json();
-        if (!response.ok || !json.success || !json.data) {
-          throw new Error(json.message || 'No se pudo iniciar el pago con Skylink.');
-        }
-
-        currentOrder = json.data;
-        sessionStorage.setItem('skypayOrderId', currentOrder.identifier || currentOrder.orderId);
-        showPaymentStep(name);
-      } catch (error) {
-        setError(errorBox, error.message);
-        button.disabled = false;
-        button.textContent = 'Continuar al pago';
-      }
+      await crearTransaccionSkylink({
+        name,
+        email,
+        phone,
+        idNumber,
+        buttonEl: button,
+        errorBoxEl: errorBox,
+        idleLabel: 'Guardar datos y continuar al pago →'
+      });
     });
 
     function showPaymentStep(name) {
       const paymentUrl = currentOrder.payment_url || currentOrder.skylink_url;
-      document.getElementById('invoiceStep').hidden = true;
-      document.getElementById('paymentStep').hidden = false;
+      showOnlyStep('paymentStep');
       document.getElementById('stepInvoice').className = 'step done';
       document.getElementById('stepPayment').className = 'step active';
       document.getElementById('payerName').textContent = name;

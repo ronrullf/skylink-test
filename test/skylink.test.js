@@ -610,3 +610,216 @@ test('Resend Email integration: PDF invoice attachment, security guards and auto
   assert.equal(orderCheck.data.data.emailDispatch.provider, 'resend');
   assert.equal(orderCheck.data.data.emailDispatch.success, true);
 });
+
+test('Commercial MVP: crypto encryption, Admin Auth, Cédula Express CRM, Evolution API, dynamic branding, and product scanner CRUD', async t => {
+  const cryptoLib = require('../lib/crypto');
+  const whatsapp = require('../lib/whatsapp');
+  const email = require('../lib/email');
+  const datosFacturaHtml = fs.readFileSync(require.resolve('../public/datos-factura.html'), 'utf8');
+  const adminHtml = fs.readFileSync(require.resolve('../public/admin.html'), 'utf8');
+  const schemaSql = fs.readFileSync(require.resolve('../supabase/schema.sql'), 'utf8');
+
+  // 1. Crypto AES-256-GCM + Cedula normalization + Secret masking
+  const secret = 're_test_super_secret_key_9988';
+  const encrypted = cryptoLib.encryptSecret(secret);
+  assert.ok(encrypted.startsWith('enc:v1:'));
+  assert.notEqual(encrypted, secret);
+  assert.equal(cryptoLib.decryptSecret(encrypted), secret);
+  assert.equal(cryptoLib.maskSecret(secret), '••••••••9988');
+  assert.equal(cryptoLib.normalizeCedula('12.345.678'), 'V-12345678');
+  assert.equal(cryptoLib.normalizeCedula('e-9876543'), 'E-9876543');
+
+  // 2. Supabase schema contains all 4 required tables
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS public\.store_settings/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS public\.customers/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS public\.products/);
+  assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS public\.orders/);
+
+  // 3. New 3-view sequential Cédula-first flow in datos-factura.html
+  assert.match(datosFacturaHtml, /id="cedulaStep"/);
+  assert.match(datosFacturaHtml, /id="returningStep"/);
+  assert.match(datosFacturaHtml, /id="invoiceStep"/);
+  assert.match(datosFacturaHtml, /\/api\/customers\/by-cedula\//);
+  assert.match(datosFacturaHtml, /id="returningPayButton"/);
+
+  // 4. Admin panel includes local scanner without external CDN, Evolution API, Resend, Skylink, and Company settings
+  assert.match(adminHtml, /src="\/barcode-detector\.iife\.js"/);
+  assert.match(adminHtml, /src="\/zxing\.min\.js"/);
+  assert.match(adminHtml, /src="\/scanner-engine\.js"/);
+  assert.doesNotMatch(adminHtml, /https:\/\/(cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com)/);
+  assert.match(adminHtml, /iniciarReescaneoProducto/);
+  assert.match(adminHtml, /evolution_api/);
+  assert.match(adminHtml, /cfgResendKey/);
+  assert.match(adminHtml, /cfgSkylinkKey/);
+  assert.match(adminHtml, /cfgStoreRif/);
+
+  // 5. Mock Skylink & reload handler
+  t.mock.method(client, 'request', async (endpoint, method) => {
+    return { ok: true, status: 201, data: { success: true, data: { token: 'tok-mvp', url: `${process.env.SKYLINK_BASE_URL}/pay/tok-mvp` } } };
+  });
+
+  delete require.cache[require.resolve('../api/index')];
+  const handler = require('../api/index');
+  async function invoke(url, body = null, method = 'GET', headers = {}) {
+    let status, data;
+    const resHeaders = {};
+    await handler({ url, method, body, headers: { host: 'localhost', ...headers } }, {
+      setHeader(k, v) { resHeaders[k.toLowerCase()] = v; },
+      writeHead(code) { status = code; },
+      end(text) { data = text ? JSON.parse(text) : {}; }
+    });
+    return { status, data, headers: resHeaders };
+  }
+
+  // 6. Admin auth blocks unauthenticated requests with 401
+  assert.equal((await invoke('/api/admin/settings')).status, 401);
+  assert.equal((await invoke('/api/admin/customers')).status, 401);
+  assert.equal((await invoke('/api/products/1', { name: 'Hack' }, 'PUT')).status, 401);
+  assert.equal((await invoke('/api/products/1', null, 'DELETE')).status, 401);
+
+  // Wrong password rejected; valid password returns token
+  const badLogin = await invoke('/api/admin/login', { password: 'wrong-password' }, 'POST');
+  assert.equal(badLogin.status, 401);
+  const okLogin = await invoke('/api/admin/login', { password: cryptoLib.getAdminPassword() }, 'POST');
+  assert.equal(okLogin.status, 200);
+  assert.ok(okLogin.data.token);
+  const authHeader = { authorization: `Bearer ${okLogin.data.token}` };
+
+  // 7. Cédula Express: unknown first -> create payment saves customer -> second lookup auto-recognizes!
+  const beforeLookup = await invoke('/api/customers/by-cedula/20123456');
+  assert.equal(beforeLookup.status, 200);
+  assert.equal(beforeLookup.data.found, false);
+
+  const firstPayment = await invoke('/api/create-payment', {
+    amount: 2,
+    invoiceName: 'Andres Bello',
+    invoiceEmail: 'andres@example.com',
+    invoicePhone: '04141234567',
+    invoiceId: '20123456'
+  }, 'POST');
+  assert.equal(firstPayment.status, 200);
+
+  const afterLookup = await invoke('/api/customers/by-cedula/V-20123456');
+  assert.equal(afterLookup.status, 200);
+  assert.equal(afterLookup.data.found, true);
+  assert.equal(afterLookup.data.customer.fullName, 'Andres Bello');
+  assert.equal(afterLookup.data.customer.email, 'andres@example.com');
+  assert.equal(afterLookup.data.customer.phone, '584141234567');
+  assert.equal(afterLookup.data.customer.ordersCount, 1);
+
+  const crmList = await invoke('/api/admin/customers', null, 'GET', authHeader);
+  assert.equal(crmList.status, 200);
+  assert.equal(crmList.data.data.length, 1);
+
+  // 8. Admin updates company, Evolution API, Resend, and Skylink settings (secrets stay masked!)
+  const updatedCfg = await invoke('/api/admin/settings', {
+    storeName: 'Bodegon Los Palos Grandes C.A.',
+    storeRif: 'J-40998877-1',
+    storeAddress: 'Av. Andres Bello, Caracas',
+    invoiceFooter: 'Conserve su factura fiscal.',
+    whatsappProvider: 'evolution_api',
+    evolutionApiUrl: 'https://evo.example.com',
+    evolutionInstanceName: 'bodegon_main',
+    evolutionApiKey: 'evo-secret-12345',
+    resendFromEmail: 'Bodegon <facturas@bodegon.com>',
+    resendApiKey: 're_live_secret_9876',
+    skylinkCommerceCode: '999888777666',
+    skylinkApiKey: 'skylink-secret-5555'
+  }, 'PUT', authHeader);
+  assert.equal(updatedCfg.status, 200);
+  assert.equal(updatedCfg.data.data.storeName, 'Bodegon Los Palos Grandes C.A.');
+  assert.equal(updatedCfg.data.data.storeRif, 'J-40998877-1');
+  assert.equal(updatedCfg.data.data.whatsappProvider, 'evolution_api');
+  assert.equal(updatedCfg.data.data.evolutionApiKeyMasked, '••••••••2345');
+  assert.equal(updatedCfg.data.data.resendApiKeyMasked, '••••••••9876');
+  assert.equal(updatedCfg.data.data.skylinkApiKeyMasked, '••••••••5555');
+  // Never expose raw secrets in public-config
+  const pubCfg = await invoke('/api/public-config');
+  assert.equal(pubCfg.data.data.storeName, 'Bodegon Los Palos Grandes C.A.');
+  assert.equal(pubCfg.data.data.storeRif, 'J-40998877-1');
+  assert.equal(pubCfg.data.data.skylinkApiKey, undefined);
+  assert.equal(pubCfg.data.data.resendApiKey, undefined);
+
+  // 9. Evolution API dispatch + dynamic store branding in WhatsApp & Email PDF
+  let capturedEvoCall = null;
+  const origFetch = global.fetch;
+  global.fetch = async (url, opts) => {
+    capturedEvoCall = { url, opts, body: JSON.parse(opts.body) };
+    return { ok: true, status: 201, json: async () => ({ key: { id: 'EVO-MSG-001' } }) };
+  };
+  try {
+    const evoResult = await whatsapp.sendInvoiceWhatsApp({
+      orderId: 'AUTO-EVO-1',
+      status: 'paid',
+      clientName: 'Andres Bello',
+      clientId: 'V-20123456',
+      clientPhone: '04141234567',
+      amountBs: 100,
+      amount: 2.5
+    }, {
+      settings: {
+        storeName: 'Bodegon Los Palos Grandes C.A.',
+        storeRif: 'J-40998877-1',
+        whatsappProvider: 'evolution_api',
+        evolutionApiUrl: 'https://evo.example.com',
+        evolutionInstanceName: 'bodegon_main',
+        evolutionApiKey: 'evo-secret-12345'
+      }
+    });
+    assert.equal(evoResult.status, 'sent');
+    assert.equal(evoResult.provider, 'evolution-api');
+    assert.equal(capturedEvoCall.url, 'https://evo.example.com/message/sendText/bodegon_main');
+    assert.equal(capturedEvoCall.opts.headers.apikey, 'evo-secret-12345');
+    assert.match(capturedEvoCall.body.text, /BODEGON LOS PALOS GRANDES C\.A\./);
+    assert.match(capturedEvoCall.body.text, /J-40998877-1/);
+  } finally {
+    global.fetch = origFetch;
+  }
+
+  const dynamicPdf = email.buildPdfInvoiceBuffer({
+    orderId: 'AUTO-PDF-1',
+    clientName: 'Andres Bello',
+    clientEmail: 'andres@example.com',
+    amountBs: 100,
+    amount: 2.5
+  }, {
+    storeName: 'Bodegon Los Palos Grandes C.A.',
+    storeRif: 'J-40998877-1',
+    invoiceFooter: 'Conserve su factura fiscal.'
+  }).toString('utf8');
+  assert.match(dynamicPdf, /BODEGON LOS PALOS GRANDES C\.A\./);
+  assert.match(dynamicPdf, /J-40998877-1/);
+  assert.match(dynamicPdf, /Conserve su factura fiscal\./);
+
+  // 10. Admin Product CRUD + Re-scan barcode + Bulk CSV Import + Delete
+  const createdProd = await invoke('/api/products', {
+    name: 'Agua Mineral 1.5L',
+    code: '759888001',
+    priceBs: 20.00,
+    category: 'Bebidas'
+  }, 'POST');
+  assert.equal(createdProd.status, 201);
+  const prodId = createdProd.data.data.id;
+
+  const rescanned = await invoke(`/api/products/${prodId}`, {
+    name: 'Agua Mineral 2L',
+    priceBs: 25.00,
+    barcode: '759888999'
+  }, 'PUT', authHeader);
+  assert.equal(rescanned.status, 200);
+  assert.equal(rescanned.data.data.name, 'Agua Mineral 2L');
+  assert.equal(rescanned.data.data.priceBs, 25.00);
+  assert.equal(rescanned.data.data.code, '759888999');
+
+  const bulk = await invoke('/api/products/import', {
+    items: [
+      { barcode: '7599901', name: 'Jugo de Naranja 1L', priceBs: 30, category: 'Bebidas' },
+      { barcode: '7599902', name: 'Pan de Molde', priceBs: 28, category: 'Víveres' }
+    ]
+  }, 'POST', authHeader);
+  assert.equal(bulk.status, 200);
+  assert.equal(bulk.data.count, 2);
+
+  const deleted = await invoke(`/api/products/${prodId}`, null, 'DELETE', authHeader);
+  assert.equal(deleted.status, 200);
+});

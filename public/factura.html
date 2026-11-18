@@ -321,7 +321,7 @@
       <div class="invoice-header">
         <div>
           <h2 id="invoiceStoreName">MI TIENDA C.A.</h2>
-          <p>RIF: J-50733628-0 · Caracas, Venezuela</p>
+          <p id="invoiceStoreMeta">RIF: J-50733628-0 · Caracas, Venezuela</p>
           <p id="invoiceDate">Fecha: --/--/---- --:--</p>
         </div>
         <div class="invoice-meta">
@@ -439,6 +439,7 @@
     const params = new URLSearchParams(window.location.search);
     const orderId = params.get('order_id') || params.get('ref') || '';
     let currentOrder = null;
+    let publicConfig = null;
     let internalGuide = 'INT-' + Math.floor(100000 + Math.random() * 900000);
 
     function sanitizePdfText(str) {
@@ -464,15 +465,19 @@
       const ref = order.reference || 'SK-CONFIRMADA';
       const usd = Number(order.amount || 0).toFixed(2);
       const bs = Number(order.amountBs != null ? order.amountBs : (order.amountVes || (usd * 37.5))).toFixed(2);
+      const storeName = (order.storeName || publicConfig?.storeName || 'SKYPAY').trim();
+      const storeRif = (order.storeRif || publicConfig?.storeRif || 'J-50733628-0').trim();
+      const storeAddress = (order.storeAddress || publicConfig?.storeAddress || 'Caracas, Venezuela').trim();
+      const footerNote = (order.invoiceFooter || publicConfig?.invoiceFooter || 'Conserva este comprobante digital descargado en tu dispositivo.').trim();
 
       let textOps = [
         'BT',
         '/F1 18 Tf',
         '50 780 Td',
-        '(' + sanitizePdfText('SKYPAY - FACTURA DIGITAL DE COMPRA') + ') Tj',
+        '(' + sanitizePdfText(storeName.toUpperCase() + ' - FACTURA DIGITAL DE COMPRA') + ') Tj',
         '/F1 10 Tf',
         '0 -24 Td',
-        '(' + sanitizePdfText('RIF: J-50733628-0 | Pasarela Oficial Skylink Pay (Valink Group)') + ') Tj',
+        '(' + sanitizePdfText('RIF: ' + storeRif + ' | ' + storeAddress + ' | Skylink Pay') + ') Tj',
         '0 -18 Td',
         '(' + sanitizePdfText('--------------------------------------------------------------------------------------------------') + ') Tj',
         '/F1 11 Tf',
@@ -518,7 +523,7 @@
       textOps.push('0 -26 Td');
       textOps.push('(' + sanitizePdfText('ESTADO: PAGO VERIFICADO Y ACREDITADO POR SKYLINK PAY') + ') Tj');
       textOps.push('0 -14 Td');
-      textOps.push('(' + sanitizePdfText('Conserva este comprobante digital descargado en tu dispositivo.') + ') Tj');
+      textOps.push('(' + sanitizePdfText(footerNote) + ') Tj');
       textOps.push('ET');
 
       const contentStream = textOps.join('\n');
@@ -589,7 +594,14 @@
       }
 
       try {
-        const res = await fetch(`/api/order-status/${encodeURIComponent(orderId)}`);
+        const [res, cfgRes] = await Promise.all([
+          fetch(`/api/order-status/${encodeURIComponent(orderId)}`),
+          fetch('/api/public-config').catch(() => null)
+        ]);
+        if (cfgRes && cfgRes.ok) {
+          const cfgJson = await cfgRes.json().catch(() => null);
+          if (cfgJson && cfgJson.success) publicConfig = cfgJson.data;
+        }
         const json = await res.json();
         if (!json.success || !json.data) throw new Error(json.message || 'Orden no encontrada');
 
@@ -620,7 +632,12 @@
         if (currentOrder.source === 'kiosk') {
           document.getElementById('shippingSection').style.display = 'none';
         }
-        document.getElementById('invoiceStoreName').textContent = currentOrder.storeName || 'MI TIENDA C.A.';
+        const dynName = currentOrder.storeName || publicConfig?.storeName || 'MI TIENDA C.A.';
+        const dynRif = currentOrder.storeRif || publicConfig?.storeRif || 'J-50733628-0';
+        const dynAddress = currentOrder.storeAddress || publicConfig?.storeAddress || 'Caracas, Venezuela';
+        document.getElementById('invoiceStoreName').textContent = dynName;
+        const metaEl = document.getElementById('invoiceStoreMeta');
+        if (metaEl) metaEl.textContent = `RIF: ${dynRif} · ${dynAddress}`;
         document.getElementById('invoiceOrderId').textContent = currentOrder.orderId || orderId;
         const invoiceDate = currentOrder.paidAt || currentOrder.createdAt;
         document.getElementById('invoiceDate').textContent = 'Fecha: ' + new Date(invoiceDate).toLocaleString('es-VE');

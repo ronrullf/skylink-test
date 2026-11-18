@@ -2,1213 +2,1541 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Panel de Administración · Skypay (Skylink Pay)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Panel Administrativo · SkyPay Comercial</title>
   <link rel="stylesheet" href="/pay-ui.css">
+  <!-- Motor local de escaneo QR/Barras (sin CDN externo) -->
+  <script src="/barcode-detector.iife.js"></script>
+  <script src="/zxing.min.js"></script>
+  <script src="/scanner-engine.js"></script>
   <style>
-    /* Estilos avanzados del panel administrativo */
-    .admin-nav-tabs {
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding: 12px 0 20px;
-      border-bottom: 1px solid var(--line);
-      margin-bottom: 24px;
+    :root {
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --primary: #0f172a;
+      --accent: #047857;
+      --accent-soft: #ecfdf5;
+      --danger: #dc2626;
+      --blue: #0284c7;
     }
-    .admin-tab-btn {
-      background: white;
-      border: 1px solid var(--line);
-      color: var(--muted);
-      padding: 10px 18px;
-      border-radius: 10px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      white-space: nowrap;
-      transition: all 0.15s ease;
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+
+    /* Login Gate */
+    .login-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: linear-gradient(145deg, #0f172a 0%, #1e293b 55%, #064e3b 100%);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
     }
-    .admin-tab-btn:hover {
-      background: var(--paper);
-      color: var(--ink);
+    .login-card {
+      width: 100%; max-width: 410px; background: #fff; border-radius: 22px;
+      padding: 34px 28px; box-shadow: 0 25px 60px rgba(0,0,0,0.35);
     }
-    .admin-tab-btn.active {
-      background: #0f172a;
-      color: white;
-      border-color: #0f172a;
-      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+    .login-badge {
+      display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
+      border-radius: 999px; background: #ecfdf5; color: #047857;
+      font-size: 11px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
     }
-    .admin-tab-content {
-      display: none;
+    .login-card h1 { margin: 14px 0 6px; font-size: 24px; letter-spacing: -0.5px; }
+    .login-card p { margin: 0 0 22px; color: var(--muted); font-size: 13px; }
+
+    /* Top bar */
+    .topbar {
+      background: #0f172a; color: #fff; padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+      position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 12px rgba(0,0,0,0.12);
     }
-    .admin-tab-content.active {
-      display: block;
+    .topbar-brand { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-weight: 800; font-size: 16px; }
+    .topbar-mark { width: 34px; height: 34px; border-radius: 9px; background: #10b981; display: grid; place-items: center; font-size: 18px; }
+    .topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .pill-status {
+      font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 999px;
+      background: rgba(16, 185, 129, 0.16); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.35);
+    }
+    .pill-status.warn { background: rgba(245, 158, 11, 0.18); color: #fcd34d; border-color: rgba(245,158,11,0.35); }
+    .topbar-link {
+      color: #cbd5e1; text-decoration: none; font-size: 13px; font-weight: 600;
+      padding: 6px 12px; border-radius: 8px; transition: background .15s;
+    }
+    .topbar-link:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .btn-logout {
+      background: rgba(239, 68, 68, 0.16); color: #fca5a5; border: 1px solid rgba(239,68,68,0.35);
+      border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+    .btn-logout:hover { background: rgba(239,68,68,0.28); color: #fff; }
+
+    /* Container & Tabs */
+    .admin-shell { max-width: 1240px; margin: 22px auto 60px; padding: 0 18px; }
+    .admin-tabs {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;
+      background: #fff; padding: 8px; border-radius: 14px; border: 1px solid var(--line);
+    }
+    .tab-btn {
+      padding: 10px 14px; border-radius: 10px; border: 0; background: transparent;
+      color: var(--muted); font-size: 13px; font-weight: 700; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px; transition: all .15s;
+    }
+    .tab-btn:hover { background: #f1f5f9; color: var(--ink); }
+    .tab-btn.active { background: var(--primary); color: #fff; box-shadow: 0 4px 12px rgba(15,23,42,0.18); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: fadeIn .18s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Cards & Forms */
+    .grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; }
+    .grid-even { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+      padding: 22px; margin-bottom: 18px; box-shadow: 0 2px 10px rgba(15,23,42,0.03);
+    }
+    .card-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+      padding-bottom: 14px; margin-bottom: 16px; border-bottom: 1px solid var(--line);
+    }
+    .card-head h2 { margin: 0; font-size: 17px; font-weight: 800; }
+    .card-head p { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+    .form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .form-group { margin-bottom: 14px; }
+    .form-label { display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 5px; }
+    .form-input, .form-select, .form-textarea {
+      width: 100%; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 10px;
+      font-size: 14px; color: var(--ink); background: #fff; outline: none; font-family: inherit;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color: var(--accent); box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.12);
+    }
+    .form-hint { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+      border: 1px solid transparent; cursor: pointer; transition: all .15s; text-decoration: none;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #065f46; }
+    .btn-dark { background: var(--primary); color: #fff; }
+    .btn-dark:hover { background: #1e293b; }
+    .btn-outline { background: #fff; color: var(--ink); border-color: #cbd5e1; }
+    .btn-outline:hover { background: #f8fafc; }
+    .btn-blue { background: var(--blue); color: #fff; }
+    .btn-blue:hover { background: #0369a1; }
+    .btn-danger { background: #fef2f2; color: var(--danger); border-color: #fecaca; }
+    .btn-danger:hover { background: #fee2e2; }
+    .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+    .btn-full { width: 100%; padding: 12px 16px; font-size: 14px; }
+    .btn:disabled { opacity: 0.55; cursor: wait; }
+
+    /* Scanner Box inside Añadir Producto */
+    .scanner-stage {
+      position: relative; background: #0f172a; border-radius: 14px; overflow: hidden;
+      aspect-ratio: 16 / 10; display: flex; align-items: center; justify-content: center;
+      margin-bottom: 12px; border: 2px solid #1e293b;
+    }
+    .scanner-stage video { width: 100%; height: 100%; object-fit: cover; }
+    .scanner-laser {
+      position: absolute; left: 10%; right: 10%; height: 2px;
+      background: linear-gradient(90deg, transparent, #22c55e, transparent);
+      box-shadow: 0 0 10px #22c55e; animation: scanAnim 2.1s infinite ease-in-out; pointer-events: none;
+    }
+    @keyframes scanAnim { 0%,100% { top: 20%; } 50% { top: 80%; } }
+    .scanner-overlay-badge {
+      position: absolute; top: 10px; left: 10px; padding: 4px 10px; border-radius: 999px;
+      background: rgba(15,23,42,0.82); color: #f8fafc; font-size: 11px; font-weight: 700;
+    }
+    .scanner-overlay-badge.live { background: rgba(4,120,87,0.92); }
+    .rescan-banner {
+      background: #fef3c7; border: 1.5px solid #f59e0b; color: #92400e;
+      padding: 10px 14px; border-radius: 10px; font-size: 12px; font-weight: 700;
+      display: none; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px;
     }
 
-    /* Generador rápido de links */
-    .quick-amount-box {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 14px;
-      padding: 20px;
-      margin-bottom: 20px;
+    /* Provider Radio Cards */
+    .provider-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .provider-card {
+      border: 2px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer;
+      transition: all .15s; background: #fff;
     }
-    .amount-input-hero {
-      display: flex;
-      align-items: center;
-      background: white;
-      border: 2px solid #cbd5e1;
-      border-radius: 12px;
-      padding: 8px 16px;
-      transition: border-color 0.2s;
+    .provider-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+    .provider-card strong { display: block; font-size: 14px; margin-bottom: 4px; }
+    .provider-card small { font-size: 11px; color: var(--muted); display: block; line-height: 1.4; }
+
+    /* Tables */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table th {
+      text-align: left; padding: 10px 10px; font-size: 11px; text-transform: uppercase;
+      color: var(--muted); border-bottom: 2px solid var(--line); background: #f8fafc;
     }
-    .amount-input-hero:focus-within {
-      border-color: #10b981;
-      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    .data-table td { padding: 10px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .code-chip {
+      font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px;
+      background: #f1f5f9; color: #334155; padding: 3px 7px; border-radius: 6px;
     }
-    .amount-input-hero span {
-      font-size: 24px;
-      font-weight: 800;
-      color: #0f172a;
-      margin-right: 8px;
+    .status-pill {
+      display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 800;
     }
-    .amount-input-hero input {
-      border: none;
-      outline: none;
-      font-size: 32px;
-      font-weight: 800;
-      color: #0f172a;
-      width: 100%;
+    .status-pill.paid { background: #dcfce7; color: #166534; }
+    .status-pill.pending { background: #fef3c7; color: #92400e; }
+    .status-pill.failed { background: #fee2e2; color: #991b1b; }
+
+    /* Alert / Toast */
+    .toast {
+      position: fixed; bottom: 22px; right: 22px; z-index: 9000;
+      background: #0f172a; color: #fff; padding: 12px 18px; border-radius: 12px;
+      font-size: 13px; font-weight: 700; box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+      display: none; max-width: 380px;
     }
-    .quick-chips-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 14px;
+    .toast.ok { background: #047857; }
+    .toast.err { background: #b91c1c; }
+
+    .secret-pill {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700;
+      padding: 3px 9px; border-radius: 999px; background: #ecfdf5; color: #047857; margin-left: 6px;
     }
-    .chip-btn {
-      background: white;
-      border: 1px solid #cbd5e1;
-      border-radius: 20px;
-      padding: 6px 14px;
-      font-size: 12px;
-      font-weight: 700;
-      color: #334155;
-      cursor: pointer;
-      transition: all 0.15s ease;
+    .secret-pill.missing { background: #fef2f2; color: #b91c1c; }
+
+    .test-box {
+      background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 12px;
+      padding: 14px; margin-top: 16px;
     }
-    .chip-btn:hover {
-      background: #10b981;
-      color: white;
-      border-color: #10b981;
+    .test-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .test-row input { flex: 1; min-width: 180px; }
+
+    /* Preview box */
+    .invoice-preview {
+      border: 1.5px solid var(--line); border-radius: 14px; padding: 18px;
+      background: #fff; font-size: 13px;
     }
 
-    /* Cards de productos */
-    .products-admin-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 14px;
-      margin-top: 16px;
-    }
-    .prod-admin-card {
-      background: white;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 16px;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      transition: box-shadow 0.2s;
-    }
-    .prod-admin-card:hover {
-      box-shadow: 0 4px 15px rgba(0,0,0,0.06);
-    }
-    .prod-badge-bs {
-      background: #ecfdf5;
-      color: #047857;
-      border: 1px solid #a7f3d0;
-      font-weight: 800;
-      font-size: 14px;
-      padding: 4px 8px;
-      border-radius: 6px;
-      display: inline-block;
-    }
-    .prod-del-btn {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      background: #fee2e2;
-      color: #b91c1c;
-      border: none;
-      border-radius: 6px;
-      width: 28px;
-      height: 28px;
-      display: grid;
-      place-items: center;
-      cursor: pointer;
-      font-size: 14px;
-      transition: background 0.15s;
-    }
-    .prod-del-btn:hover {
-      background: #ef4444;
-      color: white;
-    }
-
-    /* Badge status de órdenes */
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-    .status-badge.paid {
-      background: #dcfce7;
-      color: #15803d;
-      border: 1px solid #86efac;
-    }
-    .status-badge.pending {
-      background: #fef9c3;
-      color: #a16207;
-      border: 1px solid #fde047;
-    }
-    .status-badge.failed {
-      background: #fee2e2;
-      color: #b91c1c;
-      border: 1px solid #fca5a5;
-    }
-
-    /* Webhooks & API tab */
-    .api-endpoint-box {
-      background: #0f172a;
-      color: #f8fafc;
-      border-radius: 10px;
-      padding: 16px;
-      font-family: monospace;
-      font-size: 12px;
-      overflow-x: auto;
-      margin: 12px 0;
-      position: relative;
-    }
-    .api-method {
-      background: #10b981;
-      color: white;
-      font-weight: 800;
-      padding: 2px 6px;
-      border-radius: 4px;
-      margin-right: 8px;
-    }
-    .code-block {
-      background: #1e293b;
-      color: #38bdf8;
-      border-radius: 8px;
-      padding: 14px;
-      font-family: monospace;
-      font-size: 12px;
-      line-height: 1.5;
-      overflow-x: auto;
-      white-space: pre;
-    }
-    .webhook-log-item {
-      background: white;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 8px;
-      font-size: 12px;
-    }
-
-    /* Responsive */
-    @media (max-width: 900px) {
-      .admin-layout {
-        grid-template-columns: 1fr !important;
-      }
+    @media (max-width: 860px) {
+      .grid-2, .grid-even, .form-row, .provider-grid { grid-template-columns: 1fr; }
+      .topbar { padding: 12px 14px; }
+      .admin-shell { padding: 0 12px; }
     }
   </style>
 </head>
 <body>
 
-  <header>
-    <a class="brand" href="/admin">
-      <span class="brand-mark">⚡</span> Skypay Admin
-    </a>
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <span class="service-badge" style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; padding: 4px 10px; border-radius: 20px; font-weight: 700;">
-        ● Skylink Pay Activo (754947900700)
-      </span>
-      <button class="rate-pill" onclick="abrirModalTasa()" id="headerBcvRate">
-        Tasa BCV: Bs. 37.50 · Editar
-      </button>
+  <!-- ===================================================== -->
+  <!-- PANTALLA DE LOGIN ADMINISTRADOR (SEGURIDAD COMERCIAL) -->
+  <!-- ===================================================== -->
+  <div class="login-overlay" id="adminLoginGate">
+    <div class="login-card">
+      <span class="login-badge">🔒 Acceso Seguro · Back-Office</span>
+      <h1>Panel Administrativo</h1>
+      <p>Ingresa tu contraseña de administrador para gestionar productos, clientes, factura, Skylink Pay, WhatsApp y Resend.</p>
+      <form id="adminLoginForm">
+        <div class="form-group">
+          <label class="form-label" for="adminPasswordInput">Contraseña de Administrador</label>
+          <input type="password" id="adminPasswordInput" class="form-input" placeholder="••••••••" autocomplete="current-password" required autofocus>
+          <span class="form-hint">Configurada en la variable <code>ADMIN_PASSWORD</code> de Vercel (por defecto en local: <code>admin1234</code>).</span>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full" id="btnAdminLogin">Iniciar Sesión →</button>
+        <div id="loginErrorMsg" style="color:#dc2626; font-size:12px; font-weight:700; margin-top:10px; display:none;"></div>
+      </form>
+      <div style="margin-top:16px; text-align:center;">
+        <a href="/autopago" style="font-size:12px; color:#64748b; text-decoration:none;">← Ir al Kiosco de Autopago</a>
+      </div>
     </div>
-    <nav class="header-links" aria-label="Secciones">
-      <a href="/autopago">🛒 Kiosco</a>
-      <a href="/admin" class="active" aria-current="page">📦 Admin</a>
-      <a href="/chat">🤖 Chat IA</a>
-    </nav>
+  </div>
+
+  <!-- BARRA SUPERIOR -->
+  <header class="topbar">
+    <a class="topbar-brand" href="/admin">
+      <span class="topbar-mark">⚡</span>
+      <div>
+        <div id="topStoreName">SkyPay Admin</div>
+        <div style="font-size:11px; color:#94a3b8; font-weight:500;">Panel Comercial · Control Total</div>
+      </div>
+    </a>
+    <div class="topbar-right">
+      <span class="pill-status" id="supabaseBadge">Verificando DB…</span>
+      <span class="pill-status" id="topBcvBadge">BCV: Bs. --</span>
+      <a href="/autopago" class="topbar-link">🛒 Kiosco</a>
+      <a href="/chat" class="topbar-link">🤖 Chat IA</a>
+      <button type="button" class="btn-logout" onclick="cerrarSesionAdmin()">Salir</button>
+    </div>
   </header>
 
-  <section class="page-heading">
-    <div>
-      <p class="eyebrow">PANEL ADMINISTRATIVO & PASARELA DE PAGOS</p>
-      <h1>Genera links de pago y gestiona tus cobros.</h1>
-      <p>Crea links por monto en Bs al instante, administra el catálogo 20–25 Bs y conecta webhooks externos.</p>
-    </div>
-  </section>
+  <main class="admin-shell" id="adminAppMain" style="display:none;">
+    <!-- PESTAÑAS DE NAVEGACIÓN -->
+    <nav class="admin-tabs" role="tablist">
+      <button type="button" class="tab-btn active" onclick="cambiarTab('tab-productos', this)">📷 Añadir Producto & Catálogo</button>
+      <button type="button" class="tab-btn" onclick="cambiarTab('tab-empresa', this)">🏢 Empresa & Factura</button>
+      <button type="button" class="tab-btn" onclick="cambiarTab('tab-whatsapp', this)">📲 WhatsApp (Green / Evolution)</button>
+      <button type="button" class="tab-btn" onclick="cambiarTab('tab-correo', this)">📧 Correo (Resend)</button>
+      <button type="button" class="tab-btn" onclick="cambiarTab('tab-skylink', this)">💳 Skylink Pay</button>
+      <button type="button" class="tab-btn" onclick="cambiarTab('tab-clientes', this)">👥 Clientes & Órdenes</button>
+      <button type="button" class="tab-btn" onclick="cambiarTab('tab-links', this)">⚡ Links Rápidos</button>
+    </nav>
 
-  <div style="max-width: 1200px; margin: 0 auto 40px; padding: 0 24px;">
-    <!-- Selector de Pestañas -->
-    <div class="admin-nav-tabs">
-      <button class="admin-tab-btn active" onclick="cambiarTab('tab-links', this)">
-        ⚡ Generador Rápido de Links
-      </button>
-      <button class="admin-tab-btn" onclick="cambiarTab('tab-catalogo', this)">
-        📦 Catálogo de Productos (20–25 Bs)
-      </button>
-      <button class="admin-tab-btn" onclick="cambiarTab('tab-ordenes', this)">
-        📊 Órdenes y Transacciones en Vivo
-      </button>
-      <button class="admin-tab-btn" onclick="cambiarTab('tab-webhooks', this)">
-        🔌 Webhooks & API Externa
-      </button>
-      <button class="admin-tab-btn" onclick="cambiarTab('tab-config', this)">
-        ⚙️ Configuración & Tasa BCV
-      </button>
-    </div>
-
-    <!-- ======================================================== -->
-    <!-- PESTAÑA 1: GENERADOR RÁPIDO DE LINKS (POR MONTO O ITEMS) -->
-    <!-- ======================================================== -->
-    <div class="admin-tab-content active" id="tab-links">
-      <div style="display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px;" class="admin-layout">
-        
-        <!-- Formulario de Creación -->
+    <!-- ===================================================== -->
+    <!-- TAB 1: AÑADIR PRODUCTO (ESCÁNER QR/BARRAS + SUPABASE) -->
+    <!-- ===================================================== -->
+    <section class="tab-panel active" id="tab-productos">
+      <div class="grid-2">
+        <!-- Columna Izquierda: Escáner + Formulario Añadir / Editar -->
         <div class="card">
-          <div class="card-title">
-            <span>⚡ Generar Link Automático por Monto</span>
-            <small>Cobra cualquier cantidad fácilmente</small>
-          </div>
-
-          <!-- Caja de Monto Principal en Bs -->
-          <div class="quick-amount-box">
-            <label class="form-label" style="font-weight: 700; color: #0f172a; margin-bottom: 6px;">
-              Monto a cobrar en Bolívares (Bs.):
-            </label>
-            <div class="amount-input-hero">
-              <span>Bs.</span>
-              <input type="number" id="inputMontoBs" placeholder="25.00" step="0.50" min="1" oninput="calcularEquivalenciaUsd()">
+          <div class="card-head">
+            <div>
+              <h2 id="prodFormHeading">📷 Añadir Producto por Escáner</h2>
+              <p>Escanea el código de barras o QR, coloca nombre y precio y guarda directo en Supabase.</p>
             </div>
-            
-            <div style="margin-top: 8px; font-size: 13px; color: #64748b; display: flex; justify-content: space-between;">
-              <span>Equivalente aproximado: <strong id="calcUsdText">$0.67 USD</strong></span>
-              <span>Tasa BCV: <strong id="calcBcvRate">Bs. 37.50</strong></span>
-            </div>
-
-            <!-- Chips de montos rápidos -->
-            <div class="quick-chips-grid">
-              <span style="font-size: 11px; font-weight: 700; color: #94a3b8; align-self: center;">Sugeridos:</span>
-              <button type="button" class="chip-btn" onclick="setMontoRapido(20)">20 Bs</button>
-              <button type="button" class="chip-btn" onclick="setMontoRapido(22.5)">22.50 Bs</button>
-              <button type="button" class="chip-btn" onclick="setMontoRapido(25)">25 Bs</button>
-              <button type="button" class="chip-btn" onclick="setMontoRapido(50)">50 Bs</button>
-              <button type="button" class="chip-btn" onclick="setMontoRapido(100)">100 Bs</button>
-              <button type="button" class="chip-btn" onclick="setMontoRapido(250)">250 Bs</button>
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="btn btn-dark btn-sm" id="btnToggleAdminCam" onclick="toggleAdminCamera()">📷 Iniciar Cámara</button>
+              <button type="button" class="btn btn-outline btn-sm" id="btnAdminTorch" style="display:none;" onclick="toggleAdminTorch()">🔦</button>
             </div>
           </div>
 
-          <!-- Opcional: Selector de Productos del Catálogo para sumar -->
-          <div style="margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <label class="form-label" style="margin-bottom: 0;">O suma productos del catálogo (20–25 Bs):</label>
-              <button type="button" class="text-button" style="padding:0; font-size:11px;" onclick="limpiarSeleccionCatalogo()">Limpiar selección</button>
-            </div>
-            <div id="quickProductsSelector" style="display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 10px;">
-              <!-- Se llena dinámicamente -->
-            </div>
-            <div id="selectedCatalogSummary" style="font-size: 12px; color: #047857; font-weight: 600; display: none;">
-              <!-- Resumen de items sumados -->
-            </div>
+          <!-- Banner cuando está en modo Re-escanear código de un producto existente -->
+          <div class="rescan-banner" id="rescanBanner">
+            <span id="rescanBannerText">🎯 Escanea el nuevo código de barras para reemplazar el actual…</span>
+            <button type="button" class="btn btn-outline btn-sm" onclick="cancelarReescaneo()">Cancelar</button>
           </div>
 
-          <!-- Datos del cliente y concepto -->
-          <div class="form-row">
+          <div class="scanner-stage" id="adminScannerViewport">
+            <video id="adminScannerVideo" playsinline webkit-playsinline muted></video>
+            <div class="scanner-laser" id="adminScannerLaser" style="display:none;"></div>
+            <span class="scanner-overlay-badge" id="adminCamBadge">Cámara en pausa</span>
+          </div>
+
+          <form id="productCrudForm">
+            <input type="hidden" id="editProductId" value="">
             <div class="form-group">
-              <label for="linkConcept" class="form-label">Concepto o Descripción</label>
-              <input type="text" id="linkConcept" class="form-input" placeholder="Ej: Compra de víveres / Servicio">
-            </div>
-            <div class="form-group">
-              <label for="linkClientName" class="form-label">Nombre del Cliente (opcional)</label>
-              <input type="text" id="linkClientName" class="form-input" placeholder="Ej: Mariana Gómez">
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="linkClientPhone" class="form-label">WhatsApp del Cliente (opcional)</label>
-            <input type="tel" id="linkClientPhone" class="form-input" placeholder="Ej: 04141234567 o 584141234567">
-            <small style="color: #64748b; font-size: 11px;">Si lo incluyes, el botón de compartir abrirá el chat directamente con él.</small>
-          </div>
-
-          <div id="linkErrorMsg" class="inline-message" hidden></div>
-
-          <button type="button" class="btn-create-link" id="btnGenerarLink" onclick="crearLinkPorMonto()">
-            <span style="font-size: 16px;">⚡ Generar Link de Pago Oficial Skylink</span>
-            <span style="font-size: 11px; opacity: 0.85;">Crea la transacción bancaria en vivo en dev-axis-payment</span>
-          </button>
-        </div>
-
-        <!-- Panel de Resultado del Link Generado -->
-        <div class="card" id="cardResultadoLink" style="background: #f8fafc; border: 2px dashed #cbd5e1;">
-          <div class="card-title">
-            <span>Link de Pago Generado</span>
-            <span id="badgeEstadoLink" class="status-badge pending">⏳ Esperando Pago</span>
-          </div>
-
-          <div id="placeholderResultado" style="text-align: center; padding: 50px 20px; color: #94a3b8;">
-            <div style="font-size: 40px; margin-bottom: 12px;">🔗</div>
-            <div style="font-weight: 600; font-size: 15px; color: #475569;">Aún no has generado un link</div>
-            <p style="font-size: 13px; margin-top: 6px;">Ingresa un monto a la izquierda y presiona el botón para generar el link de pago oficial en tiempo real.</p>
-          </div>
-
-          <div id="contenidoResultado" style="display: none;">
-            <div style="background: white; border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px;">
-              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
-                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Monto de la Orden</span>
-                <span style="font-size: 12px; color: #64748b;" id="resOrderId">LNK-12345678</span>
+              <label class="form-label" for="prodBarcode">Código de Barras / QR *</label>
+              <div style="display:flex; gap:8px;">
+                <input type="text" id="prodBarcode" class="form-input" placeholder="Escanea con cámara, pistola USB o escribe el código" required>
+                <button type="button" class="btn btn-outline btn-sm" onclick="generarCodigoAleatorio()" title="Generar código interno">🎲</button>
               </div>
-              <div style="font-size: 28px; font-weight: 900; color: #0f172a;" id="resMontoBs">Bs. 25.00</div>
-              <div style="font-size: 13px; color: #64748b;" id="resMontoUsd">≈ $0.67 USD</div>
-              <div style="margin-top: 8px; font-size: 12px; color: #334155;" id="resConcepto">Concepto: Compra express</div>
+              <span class="form-hint" id="prodScanHint">Si escaneas un código ya registrado, se cargará automáticamente para editarlo.</span>
             </div>
 
-            <!-- URL Oficial -->
-            <label class="form-label" style="font-weight: 700;">Enlace Oficial de Skylink Pay:</label>
-            <div class="result-url-box" id="resUrlBox" style="font-size: 12px; color: #0284c7; background: white;">
-              https://dev-axis-payment.valinkgroup.com/pay/...
-            </div>
-
-            <!-- Acciones -->
-            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-              <button type="button" class="btn-secondary" style="flex: 1;" onclick="copiarUrlResultado()">
-                📋 Copiar Enlace
-              </button>
-              <a href="#" target="_blank" id="btnAbrirUrl" class="btn-secondary" style="flex: 1; text-align: center; text-decoration: none;">
-                ↗ Abrir Pasarela
-              </a>
-            </div>
-
-            <a href="#" target="_blank" id="btnCompartirWA" class="btn-whatsapp" style="padding: 14px; font-size: 14px; font-weight: 700;">
-              💬 Compartir por WhatsApp con el Cliente
-            </a>
-
-            <!-- Código QR para cobro presencial -->
-            <div style="text-align: center; margin-top: 16px; background: white; padding: 16px; border-radius: 12px; border: 1px solid var(--line);">
-              <div style="font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 8px;">Código QR para escanear en caja:</div>
-              <img id="resQrImage" src="" alt="QR de Pago" style="width: 180px; height: 180px; border-radius: 8px; border: 1px solid #e2e8f0;">
-              <div style="font-size: 11px; color: #94a3b8; margin-top: 6px;">El cliente escanea con su cámara y paga con Pago Móvil C2P</div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- ======================================================== -->
-    <!-- PESTAÑA 2: CATÁLOGO DE PRODUCTOS (20–25 BS)               -->
-    <!-- ======================================================== -->
-    <div class="admin-tab-content" id="tab-catalogo">
-      <div class="card">
-        <div class="card-title">
-          <div>
-            <span>Catálogo Oficial de Productos (20–25 Bs)</span>
-            <small>Todos los artículos se encuentran en el rango accesible solicitado</small>
-          </div>
-          <button type="button" class="btn-secondary" onclick="abrirModalNuevoProducto()" style="background: #0f172a; color: white; border: none;">
-            + Añadir Producto
-          </button>
-        </div>
-
-        <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 12px 18px; border-radius: 10px; margin-bottom: 16px; font-size: 13px;">
-          <div>Total de productos: <strong id="statTotalProds">14</strong></div>
-          <div>Rango de precios: <strong style="color: #047857;">Bs. 20.00 – Bs. 25.00</strong></div>
-          <div>Tasa de cambio: <strong id="statRateText">Bs. 37.50/$</strong></div>
-        </div>
-
-        <div class="products-admin-grid" id="adminProductsGrid">
-          <!-- Renderizado dinámico de productos -->
-        </div>
-      </div>
-    </div>
-
-    <!-- ======================================================== -->
-    <!-- PESTAÑA 3: ÓRDENES Y TRANSACCIONES EN VIVO               -->
-    <!-- ======================================================== -->
-    <div class="admin-tab-content" id="tab-ordenes">
-      <div class="card">
-        <div class="card-title">
-          <span>Órdenes y Transacciones Registradas</span>
-          <div style="display: flex; gap: 8px;">
-            <button class="btn-secondary" style="font-size: 11px;" onclick="cargarOrdenes()">
-              🔄 Actualizar
-            </button>
-          </div>
-        </div>
-
-        <div style="overflow-x: auto;">
-          <table class="orders-table">
-            <thead>
-              <tr>
-                <th>ID ORDEN</th>
-                <th>FECHA</th>
-                <th>ORIGEN</th>
-                <th>CLIENTE / CONCEPTO</th>
-                <th>MONTO TOTAL</th>
-                <th>ESTADO</th>
-                <th>ACCIONES</th>
-              </tr>
-            </thead>
-            <tbody id="adminOrdersTableBody">
-              <tr>
-                <td colspan="7" style="text-align: center; color: #94a3b8; padding: 30px;">Cargando transacciones...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- ======================================================== -->
-    <!-- PESTAÑA 4: WEBHOOKS & INTEGRACIÓN API EXTERNA             -->
-    <!-- ======================================================== -->
-    <div class="admin-tab-content" id="tab-webhooks">
-      <div style="display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px;" class="admin-layout">
-        
-        <!-- Documentación y Simulador -->
-        <div>
-          <div class="card">
-            <div class="card-title">
-              <span>🔌 API de Webhooks para Apps Externas</span>
-              <small>Conecta tu e-commerce, CRM, bot o POS externo</small>
-            </div>
-            
-            <p style="font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 14px;">
-              Cualquier aplicación externa puede enviar un webhook HTTP POST a este sistema para <strong>generar links de pago automáticamente</strong> especificando el monto en Bolívares o USD.
-            </p>
-
-            <div class="api-endpoint-box">
-              <span class="api-method">POST</span> <span id="labelIncomingUrl">/api/webhooks/incoming</span>
-            </div>
-
-            <div style="font-size: 12px; font-weight: 700; color: #334155; margin: 12px 0 6px;">Ejemplo de Payload JSON que recibe el Webhook:</div>
-            <div class="code-block">{
-  "action": "create_payment_link",
-  "amount_bs": 25.00,
-  "concept": "Cobro desde App Externa",
-  "client_name": "Juan Pérez",
-  "client_phone": "584141234567"
-}</div>
-
-            <div style="font-size: 12px; font-weight: 700; color: #334155; margin: 16px 0 6px;">Ejemplo de cURL para desarrolladores:</div>
-            <div class="code-block">curl -X POST "http://localhost:3000/api/webhooks/incoming" \
-  -H "Content-Type: application/json" \
-  -d '{"action":"create_payment_link","amount_bs":25.00,"concept":"Venta POS"}'</div>
-          </div>
-
-          <!-- Simulador Interactivo de Webhooks -->
-          <div class="card">
-            <div class="card-title">
-              <span>🧪 Simulador Interactivo de Webhook</span>
-              <small>Prueba cómo tu app externa generará cobros</small>
+            <div class="form-group">
+              <label class="form-label" for="prodName">Nombre del Producto *</label>
+              <input type="text" id="prodName" class="form-input" placeholder="Ej: Harina PAN 1kg, Refresco 1.5L..." required>
             </div>
 
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Acción del Webhook</label>
-                <input type="text" id="simAction" class="form-input" value="create_payment_link" readonly>
+                <label class="form-label" for="prodPriceBs">Precio en Bolívares (Bs.) *</label>
+                <input type="number" id="prodPriceBs" class="form-input" step="0.01" min="0.01" placeholder="25.00" oninput="syncPriceFromBs()" required>
               </div>
               <div class="form-group">
-                <label class="form-label">Monto a cobrar en Bs</label>
-                <input type="number" id="simAmountBs" class="form-input" value="25.00" step="0.5">
+                <label class="form-label" for="prodPriceUsd">Precio en Dólares ($ USD)</label>
+                <input type="number" id="prodPriceUsd" class="form-input" step="0.01" min="0" placeholder="0.00" oninput="syncPriceFromUsd()">
+                <span class="form-hint">Calculado automáticamente con tasa BCV actual.</span>
               </div>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Concepto simulado</label>
-              <input type="text" id="simConcept" class="form-input" value="Prueba desde Webhook Externo">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="prodCategory">Categoría</label>
+                <select id="prodCategory" class="form-select">
+                  <option value="Víveres">Víveres</option>
+                  <option value="Bebidas">Bebidas</option>
+                  <option value="Lácteos">Lácteos</option>
+                  <option value="Snacks">Snacks</option>
+                  <option value="Salsas">Salsas</option>
+                  <option value="Charcutería">Charcutería</option>
+                  <option value="Limpieza">Limpieza</option>
+                  <option value="Farmacia">Farmacia</option>
+                  <option value="General">General</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="prodIcon">Icono (Emoji)</label>
+                <input type="text" id="prodIcon" class="form-input" value="📦" maxlength="4">
+              </div>
             </div>
 
-            <button type="button" class="btn-secondary" style="width: 100%; background: #0284c7; color: white; border: none; font-weight: 700;" onclick="simularEnvioWebhook()">
-              🚀 Enviar Webhook de Prueba y Generar Cobro
-            </button>
-
-            <div id="simResultMsg" class="inline-message" hidden></div>
-          </div>
+            <div style="display:flex; gap:8px;">
+              <button type="submit" class="btn btn-primary btn-full" id="btnSaveProduct">💾 Guardar Producto</button>
+              <button type="button" class="btn btn-outline" id="btnCancelEditProd" style="display:none;" onclick="limpiarFormProducto()">Cancelar</button>
+            </div>
+          </form>
         </div>
 
-        <!-- Configuración de Webhook Saliente y Logs -->
-        <div>
-          <div class="card">
-            <div class="card-title">
-              <span>📡 Webhook Saliente (Notificación de Pago)</span>
-            </div>
-            <p style="font-size: 12px; color: #64748b; margin-bottom: 12px;">
-              Configura la URL de tu servidor externo para recibir una notificación automática (evento <code>payment.success</code>) en cuanto el cliente complete el pago en Skylink.
-            </p>
-
-            <div class="form-group">
-              <label class="form-label">URL de destino (tu webhook):</label>
-              <input type="url" id="inputOutboundUrl" class="form-input" placeholder="https://tu-app.com/api/recibir-pago">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Secreto de firma (HMAC-SHA256):</label>
-              <input type="text" id="inputWebhookSecret" class="form-input" readonly>
-            </div>
-
-            <button type="button" class="btn-create-link" onclick="guardarConfigWebhook()" style="padding: 10px; font-size: 13px;">
-              Guardar Configuración de Webhook
-            </button>
-          </div>
-
-          <!-- Registro de actividad de webhooks -->
-          <div class="card">
-            <div class="card-title">
-              <span>📜 Registro de Actividad (Logs)</span>
-              <button class="text-button" style="padding:0; font-size:11px;" onclick="cargarLogsWebhooks()">Refrescar</button>
-            </div>
-            <div id="webhookLogsContainer" style="max-height: 280px; overflow-y: auto;">
-              <div style="color: #94a3b8; font-size: 12px; text-align: center; padding: 20px;">Sin eventos de webhook registrados aún.</div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- ======================================================== -->
-    <!-- PESTAÑA 5: CONFIGURACIÓN GENERAL & TASA BCV               -->
-    <!-- ======================================================== -->
-    <div class="admin-tab-content" id="tab-config">
-      <div style="max-width: 650px; margin: 0 auto;">
+        <!-- Columna Derecha: Inventario, Búsqueda, Edición, Re-escaneo y CSV -->
         <div class="card">
-          <div class="card-title">
-            <span>⚙️ Parámetros de la Tienda y Pasarela</span>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Tasa Oficial de Cambio BCV (Bs. por USD)</label>
-            <div style="display: flex; gap: 8px;">
-              <input type="number" id="configRateInput" class="form-input" step="0.01" min="1" value="37.50">
-              <button class="btn-create-link" style="width: auto; padding: 10px 20px;" onclick="guardarTasaBCV()">Guardar Tasa</button>
+          <div class="card-head">
+            <div>
+              <h2>📦 Catálogo en Base de Datos (<span id="prodTotalCount">0</span>)</h2>
+              <p>Edita nombre, precio o re-escanea el código de barras de cualquier artículo.</p>
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <label class="btn btn-outline btn-sm" style="cursor:pointer;">
+                📤 Importar CSV
+                <input type="file" id="csvImportInput" accept=".csv,text/csv" style="display:none;" onchange="importarProductosCSV(event)">
+              </label>
+              <button type="button" class="btn btn-outline btn-sm" onclick="exportarProductosCSV()">📥 Exportar CSV</button>
             </div>
           </div>
 
           <div class="form-group">
-            <label class="form-label">Nombre del Comercio</label>
-            <input type="text" id="configStoreName" class="form-input" value="Mi Tienda C.A.">
+            <input type="search" id="prodSearchInput" class="form-input" placeholder="🔍 Buscar por nombre, código de barras o categoría..." oninput="renderizarCatalogo()">
           </div>
 
-          <div class="form-group">
-            <label class="form-label">RIF del Comercio</label>
-            <input type="text" id="configStoreRif" class="form-input" value="J-50733628-0">
+          <div style="max-height: 540px; overflow-y: auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Código</th>
+                  <th>Precio</th>
+                  <th style="text-align:right;">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="adminProductsTbody">
+                <tr><td colspan="4" style="text-align:center; color:#94a3b8; padding:24px;">Cargando catálogo…</td></tr>
+              </tbody>
+            </table>
           </div>
+        </div>
+      </div>
+    </section>
 
-          <div class="form-group">
-            <label class="form-label">Teléfono WhatsApp de Contacto</label>
-            <input type="tel" id="configStorePhone" class="form-input" value="584121234567">
-          </div>
-
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-top: 20px;">
-            <div style="font-weight: 700; font-size: 12px; color: #334155; margin-bottom: 8px;">CREDENCIALES OFICIALES SKYLINK PAY (VALINK GROUP):</div>
-            <div style="font-size: 12px; color: #64748b; line-height: 1.6;">
-              • <strong>Código de Comercio:</strong> 754947900700<br>
-              • <strong>Endpoint Base:</strong> https://dev-axis-payment.valinkgroup.com<br>
-              • <strong>Autenticación:</strong> HMAC-SHA256 con Clave de API y Timestamp<br>
-              • <strong>Estado:</strong> Conectado y Verificado en Producción/Sandbox
+    <!-- ===================================================== -->
+    <!-- TAB 2: EMPRESA Y PARÁMETROS DE FACTURA                -->
+    <!-- ===================================================== -->
+    <section class="tab-panel" id="tab-empresa">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>🏢 Datos de Empresa & Factura</h2>
+              <p>Se aplican automáticamente al kiosco, factura web, PDF, correo Resend y WhatsApp.</p>
             </div>
           </div>
 
-          <div style="margin-top: 20px;">
-            <button class="btn-create-link" onclick="guardarAjustesTienda()">
-              Guardar Datos de la Tienda
-            </button>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="cfgStoreName">Nombre Comercial de la Tienda *</label>
+              <input type="text" id="cfgStoreName" class="form-input" placeholder="Ej: Automercado Express C.A.">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cfgStoreRif">RIF / Documento Fiscal *</label>
+              <input type="text" id="cfgStoreRif" class="form-input" placeholder="Ej: J-50733628-0">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="cfgStoreAddress">Dirección Fiscal / Sucursal</label>
+              <input type="text" id="cfgStoreAddress" class="form-input" placeholder="Av. Francisco de Miranda, Chacao">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cfgStoreCity">Ciudad</label>
+              <input type="text" id="cfgStoreCity" class="form-input" placeholder="Caracas">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="cfgStorePhone">WhatsApp de Atención de la Tienda</label>
+              <input type="tel" id="cfgStorePhone" class="form-input" placeholder="584121234567">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cfgStoreLogoUrl">URL del Logo (opcional)</label>
+              <input type="url" id="cfgStoreLogoUrl" class="form-input" placeholder="https://.../logo.png">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="cfgInvoiceFooter">Mensaje / Pie de Factura</label>
+            <textarea id="cfgInvoiceFooter" class="form-textarea" rows="2" placeholder="Gracias por su compra. Conserve su factura digital."></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="cfgPricingMode">Estrategia de Precios del Catálogo</label>
+              <select id="cfgPricingMode" class="form-select">
+                <option value="fixed_bs">Bolívares fijos (Bs.)</option>
+                <option value="usd_bcv">USD indexado automáticamente a Tasa BCV</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cfgBcvMode">Modo de Tasa BCV</label>
+              <select id="cfgBcvMode" class="form-select" onchange="toggleManualRateField()">
+                <option value="auto">Automática en vivo (DolarAPI BCV)</option>
+                <option value="manual">Tasa Manual fija</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" id="manualBcvGroup" style="display:none;">
+            <label class="form-label" for="cfgManualBcvRate">Tasa BCV Manual (Bs. por $1 USD)</label>
+            <input type="number" id="cfgManualBcvRate" class="form-input" step="0.01" min="1" value="37.50">
+          </div>
+
+          <button type="button" class="btn btn-primary btn-full" onclick="guardarEmpresaSettings()">💾 Guardar Datos de Empresa y Factura</button>
+        </div>
+
+        <!-- Vista previa en vivo del encabezado de factura -->
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>🧾 Vista Previa del Encabezado de Factura</h2>
+              <p>Así verán tus clientes la factura digital y el PDF.</p>
+            </div>
+          </div>
+          <div class="invoice-preview">
+            <div style="background:#dcfce7; color:#166534; font-size:11px; font-weight:800; padding:6px 10px; border-radius:8px; display:inline-block; margin-bottom:12px;">
+              ✓ PAGO CONFIRMADO VÍA SKYLINK PAY
+            </div>
+            <h3 id="prevStoreName" style="margin:0 0 4px; font-size:20px;">MI TIENDA C.A.</h3>
+            <div id="prevStoreMeta" style="color:#64748b; font-size:12px; margin-bottom:14px;">RIF: J-50733628-0 · Caracas, Venezuela</div>
+            <div style="border-top:1px dashed #cbd5e1; padding-top:12px; font-size:12px; color:#475569;">
+              <strong>Pie de factura:</strong>
+              <p id="prevInvoiceFooter" style="margin:4px 0 0; color:#64748b;">Gracias por su compra. Comprobante electrónico autorizado.</p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-  </div>
+    <!-- ===================================================== -->
+    <!-- TAB 3: WHATSAPP (GREEN API / EVOLUTION API)           -->
+    <!-- ===================================================== -->
+    <section class="tab-panel" id="tab-whatsapp">
+      <div class="card" style="max-width: 820px; margin: 0 auto;">
+        <div class="card-head">
+          <div>
+            <h2>📲 Proveedor de WhatsApp para Facturas</h2>
+            <p>Cambia el número remitente o alterna entre Green API y Evolution API en cualquier momento.</p>
+          </div>
+        </div>
 
-  <!-- Modal para Agregar Producto -->
-  <div class="modal-overlay" id="modalAddProduct">
-    <div class="modal-box">
-      <button class="modal-close-btn" onclick="cerrarModalNuevoProducto()">✕</button>
-      <h3 style="font-size: 18px; font-weight: 800; margin-bottom: 16px;">Añadir Producto al Catálogo (20–25 Bs)</h3>
+        <div class="provider-grid">
+          <div class="provider-card" id="cardProvGreen" onclick="seleccionarProveedorWA('green_api')">
+            <strong>🟢 Green API</strong>
+            <small>Fácil de conectar escaneando QR. Plan gratis hasta 3 chats/mes; pago ilimitado.</small>
+          </div>
+          <div class="provider-card" id="cardProvEvo" onclick="seleccionarProveedorWA('evolution_api')">
+            <strong>🚀 Evolution API</strong>
+            <small>Open-source sin límite de contactos. Ideal para producción comercial y múltiples clientes.</small>
+          </div>
+          <div class="provider-card" id="cardProvDisabled" onclick="seleccionarProveedorWA('disabled')">
+            <strong>💬 Solo enlace wa.me</strong>
+            <small>Sin envío automático en segundo plano; el cliente abre su chat manualmente.</small>
+          </div>
+        </div>
+        <input type="hidden" id="cfgWaProvider" value="green_api">
 
-      <div class="form-group">
-        <label class="form-label">Nombre del Producto</label>
-        <input type="text" id="newProdName" class="form-input" placeholder="Ej: Sardinas en Tomate 170g">
+        <!-- Campos Green API -->
+        <div id="waGreenFields">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="cfgGreenInstance">Green API Instance ID</label>
+              <input type="text" id="cfgGreenInstance" class="form-input" placeholder="Ej: 710722804897">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cfgGreenHost">Green API Host</label>
+              <input type="url" id="cfgGreenHost" class="form-input" placeholder="https://api.green-api.com">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cfgGreenToken">
+              Green API Token
+              <span class="secret-pill" id="badgeGreenToken">Sin configurar</span>
+            </label>
+            <input type="password" id="cfgGreenToken" class="form-input" placeholder="Dejar vacío para conservar el token guardado">
+          </div>
+        </div>
+
+        <!-- Campos Evolution API -->
+        <div id="waEvolutionFields" style="display:none;">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="cfgEvoUrl">Evolution API Base URL</label>
+              <input type="url" id="cfgEvoUrl" class="form-input" placeholder="https://evo.tudominio.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cfgEvoInstance">Nombre de Instancia (Número conectado)</label>
+              <input type="text" id="cfgEvoInstance" class="form-input" placeholder="Ej: tienda_principal">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cfgEvoKey">
+              Evolution API Key
+              <span class="secret-pill" id="badgeEvoKey">Sin configurar</span>
+            </label>
+            <input type="password" id="cfgEvoKey" class="form-input" placeholder="Dejar vacío para conservar la API Key guardada">
+          </div>
+        </div>
+
+        <button type="button" class="btn btn-primary btn-full" onclick="guardarWhatsAppSettings()">💾 Guardar Configuración de WhatsApp</button>
+
+        <div class="test-box">
+          <label class="form-label">🧪 Enviar WhatsApp de Prueba</label>
+          <div class="test-row">
+            <input type="tel" id="testWaPhone" class="form-input" placeholder="Ej: 04121234567 o 584121234567">
+            <button type="button" class="btn btn-blue" onclick="probarWhatsApp()">Enviar Prueba →</button>
+          </div>
+          <div id="testWaResult" style="margin-top:8px; font-size:12px; font-weight:700;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================== -->
+    <!-- TAB 4: CORREO ELECTRÓNICO (RESEND API)                -->
+    <!-- ===================================================== -->
+    <section class="tab-panel" id="tab-correo">
+      <div class="card" style="max-width: 760px; margin: 0 auto;">
+        <div class="card-head">
+          <div>
+            <h2>📧 Correo Electrónico de Facturas (Resend API)</h2>
+            <p>Cambia la API Key de Resend o el correo remitente oficial sin redesplegar Vercel.</p>
+          </div>
+        </div>
+
+        <div class="form-group" style="display:flex; align-items:center; gap:10px;">
+          <input type="checkbox" id="cfgResendEnabled" checked style="width:18px; height:18px;">
+          <label for="cfgResendEnabled" style="font-size:14px; font-weight:700; cursor:pointer;">Activar envío automático de factura PDF por correo al pagarse una orden</label>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cfgResendKey">
+            Resend API Key
+            <span class="secret-pill" id="badgeResendKey">Sin configurar</span>
+          </label>
+          <input type="password" id="cfgResendKey" class="form-input" placeholder="re_... (dejar vacío para mantener la actual)">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cfgResendFrom">Correo Remitente (From Email)</label>
+          <input type="text" id="cfgResendFrom" class="form-input" placeholder="Mi Tienda <facturas@mitienda.com>">
+          <span class="form-hint">En modo pruebas usa <code>SkyPay &lt;onboarding@resend.dev&gt;</code>. En producción usa tu dominio verificado en Resend.</span>
+        </div>
+
+        <button type="button" class="btn btn-primary btn-full" onclick="guardarResendSettings()">💾 Guardar Configuración de Resend</button>
+
+        <div class="test-box">
+          <label class="form-label">🧪 Enviar Correo de Prueba</label>
+          <div class="test-row">
+            <input type="email" id="testEmailDest" class="form-input" placeholder="tu-correo@gmail.com">
+            <button type="button" class="btn btn-blue" onclick="probarCorreo()">Enviar Correo de Prueba →</button>
+          </div>
+          <div id="testEmailResult" style="margin-top:8px; font-size:12px; font-weight:700;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================== -->
+    <!-- TAB 5: PASARELA SKYLINK PAY                           -->
+    <!-- ===================================================== -->
+    <section class="tab-panel" id="tab-skylink">
+      <div class="card" style="max-width: 760px; margin: 0 auto;">
+        <div class="card-head">
+          <div>
+            <h2>💳 Pasarela de Pagos Skylink Pay (Valink Group)</h2>
+            <p>Cambia el Código de Comercio, API Key o entorno (Sandbox / Producción) para cada cliente.</p>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cfgSkylinkUrl">Endpoint Base de Skylink Pay</label>
+          <input type="url" id="cfgSkylinkUrl" class="form-input" placeholder="https://dev-axis-payment.valinkgroup.com">
+          <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('cfgSkylinkUrl').value='https://dev-axis-payment.valinkgroup.com'">Usar Sandbox (dev-axis)</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('cfgSkylinkUrl').value='https://axis-payment.valinkgroup.com'">Usar Producción</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cfgSkylinkCode">Código de Comercio (Commerce Code)</label>
+          <input type="text" id="cfgSkylinkCode" class="form-input" placeholder="Ej: 754947900700">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cfgSkylinkKey">
+            Skylink API Key (Firma HMAC-SHA256)
+            <span class="secret-pill" id="badgeSkylinkKey">Sin configurar</span>
+          </label>
+          <input type="password" id="cfgSkylinkKey" class="form-input" placeholder="Dejar vacío para conservar la clave actual cifrada">
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-primary" style="flex:1;" onclick="guardarSkylinkSettings()">💾 Guardar Credenciales Skylink</button>
+          <button type="button" class="btn btn-blue" onclick="probarSkylink()">🔌 Probar Conexión HMAC</button>
+        </div>
+        <div id="testSkylinkResult" style="margin-top:10px; font-size:12px; font-weight:700;"></div>
+      </div>
+    </section>
+
+    <!-- ===================================================== -->
+    <!-- TAB 6: CLIENTES (CRM CÉDULA EXPRESS) & ÓRDENES        -->
+    <!-- ===================================================== -->
+    <section class="tab-panel" id="tab-clientes">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>👥 Clientes Registrados (Cédula Express · <span id="customersCount">0</span>)</h2>
+            <p>Guardados automáticamente desde su primera compra para auto-llenado por cédula.</p>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="cargarClientes()">🔄 Actualizar</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="exportarClientesCSV()">📥 Exportar CSV</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Cédula / RIF</th>
+                <th>Nombre</th>
+                <th>Correo</th>
+                <th>WhatsApp</th>
+                <th>Compras</th>
+                <th>Última Compra</th>
+              </tr>
+            </thead>
+            <tbody id="customersTbody">
+              <tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:22px;">Cargando clientes…</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Precio en Bolívares (Bs.)</label>
-          <input type="number" id="newProdPriceBs" class="form-input" value="23.50" step="0.5" min="1">
-          <small style="color: #047857; font-size: 11px;">Rango sugerido: 20.00 – 25.00 Bs</small>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>📊 Historial de Órdenes y Ventas</h2>
+            <p>Órdenes persistentes con estado de pago y reenvío de factura.</p>
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="cargarOrdenes()">🔄 Actualizar</button>
         </div>
-        <div class="form-group">
-          <label class="form-label">Categoría</label>
-          <select id="newProdCategory" class="form-input">
-            <option value="Víveres">Víveres</option>
-            <option value="Lácteos">Lácteos</option>
-            <option value="Bebidas">Bebidas</option>
-            <option value="Snacks">Snacks</option>
-            <option value="Salsas">Salsas</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Icono Emoji</label>
-          <input type="text" id="newProdIcon" class="form-input" value="🥫">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Código de Barras</label>
-          <input type="text" id="newProdCode" class="form-input" placeholder="7591015">
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Orden</th>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Monto</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="ordersTbody">
+              <tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:22px;">Cargando órdenes…</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
+    </section>
 
-      <button type="button" class="btn-create-link" onclick="guardarNuevoProducto()" style="margin-top: 14px;">
-        Guardar Producto
-      </button>
-    </div>
-  </div>
+    <!-- ===================================================== -->
+    <!-- TAB 7: GENERADOR RÁPIDO DE LINKS DE PAGO              -->
+    <!-- ===================================================== -->
+    <section class="tab-panel" id="tab-links">
+      <div class="grid-even">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>⚡ Generador Rápido de Links de Pago</h2>
+              <p>Crea un link Skylink al instante para cobrar por WhatsApp o caja.</p>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="linkAmountBs">Monto en Bolívares (Bs.)</label>
+              <input type="number" id="linkAmountBs" class="form-input" step="0.5" min="1" placeholder="25.00">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="linkConcept">Concepto</label>
+              <input type="text" id="linkConcept" class="form-input" placeholder="Compra express / Servicio">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="linkClientName">Cliente (opcional)</label>
+              <input type="text" id="linkClientName" class="form-input" placeholder="María Pérez">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="linkClientPhone">WhatsApp (opcional)</label>
+              <input type="tel" id="linkClientPhone" class="form-input" placeholder="04121234567">
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary btn-full" id="btnGenQuickLink" onclick="generarLinkRapido()">⚡ Generar Link Oficial Skylink</button>
+        </div>
 
-  <!-- Modal para Editar Tasa BCV -->
-  <div class="modal-overlay" id="modalRateEdit">
-    <div class="modal-box" style="max-width: 380px;">
-      <button class="modal-close-btn" onclick="cerrarModalTasa()">✕</button>
-      <h3 style="font-size: 16px; font-weight: 800; margin-bottom: 12px;">Editar Tasa Oficial BCV</h3>
-      <div class="form-group">
-        <label class="form-label">Nueva tasa en Bolívares por Dólar (Bs./$)</label>
-        <input type="number" id="modalRateInput" class="form-input" step="0.01" min="1" value="37.50">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>🔗 Resultado del Link</h2>
+              <p>Comparte el enlace o muestra el QR en caja.</p>
+            </div>
+          </div>
+          <div id="quickLinkPlaceholder" style="text-align:center; padding:32px 12px; color:#94a3b8; font-size:13px;">
+            Genera un link a la izquierda para ver la URL y código QR aquí.
+          </div>
+          <div id="quickLinkResult" style="display:none;">
+            <div style="font-size:24px; font-weight:900; margin-bottom:6px;" id="qlAmount">Bs. 0.00</div>
+            <div style="word-break:break-all; font-size:12px; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:12px;" id="qlUrl"></div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+              <button type="button" class="btn btn-outline btn-sm" onclick="copiarLinkRapido()">📋 Copiar Link</button>
+              <a href="#" target="_blank" id="qlOpen" class="btn btn-dark btn-sm">↗ Abrir Pasarela</a>
+              <a href="#" target="_blank" id="qlWa" class="btn btn-primary btn-sm">💬 Enviar por WhatsApp</a>
+            </div>
+            <div style="text-align:center;">
+              <img id="qlQr" src="" alt="QR de Pago" style="width:170px; height:170px; border-radius:10px; border:1px solid #e2e8f0;">
+            </div>
+          </div>
+        </div>
       </div>
-      <button type="button" class="btn-create-link" onclick="guardarTasaDesdeModal()">
-        Actualizar Tasa
-      </button>
-    </div>
-  </div>
+    </section>
+  </main>
 
-  <footer class="page-footer">
-    <span>Skypay · Panel de Control Oficial Skylink Pay (Valink Group)</span>
-    <span>Soporta Pagos Móviles C2P y Débito Inmediato</span>
-  </footer>
+  <div class="toast" id="adminToast"></div>
 
   <script>
-    let bcvRate = 37.50;
-    let catalogoProductos = [];
-    let itemsSeleccionadosCatalogo = [];
-    let linkActual = null;
-    let pollIntervalLink = null;
+    let currentBcvRate = 37.50;
+    let adminProducts = [];
+    let adminCustomers = [];
+    let adminScanner = null;
+    let rescanTargetProduct = null;
+    let lastQuickLinkUrl = '';
 
-    // Navegación de pestañas
+    function showToast(msg, type = 'ok') {
+      const el = document.getElementById('adminToast');
+      el.textContent = msg;
+      el.className = 'toast ' + (type === 'err' ? 'err' : 'ok');
+      el.style.display = 'block';
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => { el.style.display = 'none'; }, 3500);
+    }
+
+    function playBeep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1046, ctx.currentTime);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.12);
+      } catch {}
+    }
+
     function cambiarTab(tabId, btn) {
-      document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
-      btn.classList.add('active');
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.getElementById(tabId).classList.add('active');
+      if (btn) btn.classList.add('active');
 
-      if (tabId === 'tab-ordenes') cargarOrdenes();
-      if (tabId === 'tab-webhooks') cargarLogsWebhooks();
-      if (tabId === 'tab-catalogo') cargarCatalogo();
+      // Pausar cámara si se sale de la pestaña de productos
+      if (tabId !== 'tab-productos' && adminScanner && adminScanner.running) {
+        adminScanner.stop();
+        document.getElementById('btnToggleAdminCam').textContent = '📷 Iniciar Cámara';
+        document.getElementById('adminScannerLaser').style.display = 'none';
+      }
+      if (tabId === 'tab-clientes') {
+        cargarClientes();
+        cargarOrdenes();
+      }
     }
 
-    // Inicialización y Carga de Tasa BCV
-    async function inicializar() {
+    // =====================================================
+    // AUTENTICACIÓN ADMIN
+    // =====================================================
+    async function verificarSesion() {
       try {
-        const res = await fetch('/api/bcv-rate');
+        const res = await fetch('/api/admin/session');
         const json = await res.json();
-        if (json.rate) {
-          bcvRate = Number(json.rate);
-          actualizarTextosTasa();
+        updateDbBadge(Boolean(json.supabaseConnected));
+        if (json.authenticated) {
+          mostrarAppAdmin();
         }
-      } catch (e) {}
-
-      await cargarCatalogo();
-      await cargarAjustesTienda();
-      document.getElementById('inputMontoBs').value = '25.00';
-      calcularEquivalenciaUsd();
+      } catch {}
     }
 
-    function actualizarTextosTasa() {
-      document.getElementById('headerBcvRate').textContent = `Tasa BCV: Bs. ${bcvRate.toFixed(2)} · Editar`;
-      document.getElementById('calcBcvRate').textContent = `Bs. ${bcvRate.toFixed(2)}`;
-      document.getElementById('configRateInput').value = bcvRate.toFixed(2);
-      document.getElementById('modalRateInput').value = bcvRate.toFixed(2);
-      const statRate = document.getElementById('statRateText');
-      if (statRate) statRate.textContent = `Bs. ${bcvRate.toFixed(2)}/$`;
-      calcularEquivalenciaUsd();
-    }
-
-    function setMontoRapido(bs) {
-      document.getElementById('inputMontoBs').value = Number(bs).toFixed(2);
-      calcularEquivalenciaUsd();
-    }
-
-    function calcularEquivalenciaUsd() {
-      const bs = parseFloat(document.getElementById('inputMontoBs').value) || 0;
-      const usd = (bs / bcvRate).toFixed(2);
-      document.getElementById('calcUsdText').textContent = `$${usd} USD`;
-    }
-
-    // ==========================================
-    // GESTIÓN DEL CATÁLOGO DE PRODUCTOS (20–25 Bs)
-    // ==========================================
-    async function cargarCatalogo() {
-      try {
-        const res = await fetch('/api/products');
-        const json = await res.json();
-        if (json.success && json.data) {
-          catalogoProductos = json.data;
-          renderCatalogoAdmin();
-          renderSelectorRapidoCatalogo();
-        }
-      } catch (e) {}
-    }
-
-    function renderCatalogoAdmin() {
-      const grid = document.getElementById('adminProductsGrid');
-      grid.innerHTML = '';
-      document.getElementById('statTotalProds').textContent = catalogoProductos.length;
-
-      catalogoProductos.forEach(p => {
-        const card = document.createElement('div');
-        card.className = 'prod-admin-card';
-        const priceBs = Number(p.priceBs).toFixed(2);
-        const priceUsd = (p.priceBs / bcvRate).toFixed(2);
-
-        card.innerHTML = `
-          <button class="prod-del-btn" title="Eliminar producto" onclick="eliminarProducto(${p.id})">✕</button>
-          <div>
-            <div style="font-size: 28px; margin-bottom: 8px;">${p.icon || '📦'}</div>
-            <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 4px;">${p.name}</div>
-            <div style="font-size: 11px; color: #64748b;">${p.category || 'General'} · Cód: ${p.code}</div>
-          </div>
-          <div style="margin-top: 14px; display: flex; justify-content: space-between; align-items: baseline;">
-            <span class="prod-badge-bs">Bs. ${priceBs}</span>
-            <span style="font-size: 11px; color: #64748b;">≈ $${priceUsd}</span>
-          </div>
-        `;
-        grid.appendChild(card);
-      });
-    }
-
-    function renderSelectorRapidoCatalogo() {
-      const container = document.getElementById('quickProductsSelector');
-      container.innerHTML = '';
-
-      catalogoProductos.forEach(p => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'chip-btn';
-        btn.innerHTML = `${p.icon || '📦'} ${p.name} (Bs. ${Number(p.priceBs).toFixed(2)})`;
-        btn.onclick = () => sumarProductoAlMonto(p);
-        container.appendChild(btn);
-      });
-    }
-
-    function sumarProductoAlMonto(prod) {
-      itemsSeleccionadosCatalogo.push(prod);
-      const sumaBs = itemsSeleccionadosCatalogo.reduce((s, i) => s + i.priceBs, 0);
-      document.getElementById('inputMontoBs').value = sumaBs.toFixed(2);
-      calcularEquivalenciaUsd();
-
-      const summary = document.getElementById('selectedCatalogSummary');
-      summary.style.display = 'block';
-      summary.textContent = `Productos sumados (${itemsSeleccionadosCatalogo.length}): ` +
-        itemsSeleccionadosCatalogo.map(i => i.name).join(', ');
-
-      if (!document.getElementById('linkConcept').value) {
-        document.getElementById('linkConcept').value = itemsSeleccionadosCatalogo.map(i => i.name).join(', ');
+    function updateDbBadge(connected) {
+      const badge = document.getElementById('supabaseBadge');
+      if (!badge) return;
+      if (connected) {
+        badge.textContent = '● Supabase Conectado';
+        badge.className = 'pill-status';
+      } else {
+        badge.textContent = '⚠ Modo Local (Sin Supabase)';
+        badge.className = 'pill-status warn';
       }
     }
 
-    function limpiarSeleccionCatalogo() {
-      itemsSeleccionadosCatalogo = [];
-      document.getElementById('selectedCatalogSummary').style.display = 'none';
-      document.getElementById('inputMontoBs').value = '25.00';
-      calcularEquivalenciaUsd();
-    }
-
-    async function eliminarProducto(id) {
-      if (!confirm('¿Seguro que deseas eliminar este producto del catálogo?')) return;
-      try {
-        const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
-        await cargarCatalogo();
-      } catch (e) {}
-    }
-
-    function abrirModalNuevoProducto() {
-      const priceInput = document.getElementById('newProdPriceBs');
-      if (priceInput) {
-        // Precio predeterminado aleatorio (entre 18 y 33 Bs)
-        priceInput.value = (Math.floor(Math.random() * 15 + 18) + (Math.random() < 0.5 ? 0 : 0.5)).toFixed(2);
-      }
-      document.getElementById('modalAddProduct').style.display = 'flex';
-    }
-    function cerrarModalNuevoProducto() {
-      document.getElementById('modalAddProduct').style.display = 'none';
-    }
-
-    async function guardarNuevoProducto() {
-      const name = document.getElementById('newProdName').value.trim();
-      const priceBs = parseFloat(document.getElementById('newProdPriceBs').value);
-      const category = document.getElementById('newProdCategory').value;
-      const icon = document.getElementById('newProdIcon').value || '📦';
-      const code = document.getElementById('newProdCode').value || ('759' + Math.floor(1000 + Math.random() * 9000));
-
-      if (!name || isNaN(priceBs) || priceBs <= 0) {
-        alert('Por favor ingresa un nombre y precio válido.');
-        return;
-      }
+    document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const password = document.getElementById('adminPasswordInput').value;
+      const errEl = document.getElementById('loginErrorMsg');
+      const btn = document.getElementById('btnAdminLogin');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Verificando…';
 
       try {
-        const res = await fetch('/api/products', {
+        const res = await fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, priceBs, category, icon, code })
+          body: JSON.stringify({ password })
         });
         const json = await res.json();
-        if (json.success) {
-          cerrarModalNuevoProducto();
-          document.getElementById('newProdName').value = '';
-          await cargarCatalogo();
-        } else {
-          alert(json.message || 'Error al guardar');
+        if (!res.ok || !json.success) {
+          throw new Error(json.message || 'Contraseña incorrecta.');
         }
-      } catch (e) {
-        alert('Error de conexión');
+        mostrarAppAdmin();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Iniciar Sesión →';
+      }
+    });
+
+    async function cerrarSesionAdmin() {
+      if (adminScanner && adminScanner.running) adminScanner.stop();
+      await fetch('/api/admin/logout', { method: 'POST' });
+      window.location.reload();
+    }
+
+    async function mostrarAppAdmin() {
+      document.getElementById('adminLoginGate').style.display = 'none';
+      document.getElementById('adminAppMain').style.display = 'block';
+      await Promise.all([cargarConfigAdmin(), cargarCatalogo()]);
+    }
+
+    // =====================================================
+    // CARGA DE CONFIGURACIÓN GENERAL
+    // =====================================================
+    function setSecretBadge(id, configured, masked) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (configured) {
+        el.textContent = `✓ Configurada (${masked})`;
+        el.className = 'secret-pill';
+      } else {
+        el.textContent = 'Sin configurar';
+        el.className = 'secret-pill missing';
       }
     }
 
-    // ==========================================
-    // GENERACIÓN REAL DE LINK DE PAGO
-    // ==========================================
-    async function crearLinkPorMonto() {
-      const btn = document.getElementById('btnGenerarLink');
-      const errBox = document.getElementById('linkErrorMsg');
-      errBox.hidden = true;
+    function actualizarVistaPreviaFactura() {
+      const name = document.getElementById('cfgStoreName').value || 'MI TIENDA C.A.';
+      const rif = document.getElementById('cfgStoreRif').value || 'J-00000000-0';
+      const addr = document.getElementById('cfgStoreAddress').value || 'Venezuela';
+      const footer = document.getElementById('cfgInvoiceFooter').value || '';
+      document.getElementById('prevStoreName').textContent = name.toUpperCase();
+      document.getElementById('prevStoreMeta').textContent = `RIF: ${rif} · ${addr}`;
+      document.getElementById('prevInvoiceFooter').textContent = footer;
+      document.getElementById('topStoreName').textContent = name + ' · Admin';
+    }
 
-      const amountBs = parseFloat(document.getElementById('inputMontoBs').value);
-      if (!amountBs || amountBs <= 0) {
-        errBox.textContent = 'Por favor ingresa un monto válido en Bolívares (mayor a 0).';
-        errBox.hidden = false;
+    ['cfgStoreName', 'cfgStoreRif', 'cfgStoreAddress', 'cfgInvoiceFooter'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', actualizarVistaPreviaFactura);
+    });
+
+    function toggleManualRateField() {
+      const mode = document.getElementById('cfgBcvMode').value;
+      document.getElementById('manualBcvGroup').style.display = mode === 'manual' ? 'block' : 'none';
+    }
+
+    function seleccionarProveedorWA(provider) {
+      document.getElementById('cfgWaProvider').value = provider;
+      document.getElementById('cardProvGreen').classList.toggle('selected', provider === 'green_api');
+      document.getElementById('cardProvEvo').classList.toggle('selected', provider === 'evolution_api');
+      document.getElementById('cardProvDisabled').classList.toggle('selected', provider === 'disabled');
+      document.getElementById('waGreenFields').style.display = provider === 'green_api' ? 'block' : 'none';
+      document.getElementById('waEvolutionFields').style.display = provider === 'evolution_api' ? 'block' : 'none';
+    }
+
+    async function cargarConfigAdmin() {
+      const res = await fetch('/api/admin/settings');
+      if (res.status === 401) {
+        document.getElementById('adminLoginGate').style.display = 'flex';
+        return;
+      }
+      const json = await res.json();
+      if (!json.success || !json.data) return;
+      const s = json.data;
+
+      currentBcvRate = Number(s.bcvRate || 37.50);
+      document.getElementById('topBcvBadge').textContent = `BCV: Bs. ${currentBcvRate.toFixed(2)}`;
+      updateDbBadge(Boolean(s.supabaseConnected));
+
+      // Empresa & Factura
+      document.getElementById('cfgStoreName').value = s.storeName || '';
+      document.getElementById('cfgStoreRif').value = s.storeRif || '';
+      document.getElementById('cfgStoreAddress').value = s.storeAddress || '';
+      document.getElementById('cfgStoreCity').value = s.storeCity || '';
+      document.getElementById('cfgStorePhone').value = s.storePhone || '';
+      document.getElementById('cfgStoreLogoUrl').value = s.storeLogoUrl || '';
+      document.getElementById('cfgInvoiceFooter').value = s.invoiceFooter || '';
+      document.getElementById('cfgPricingMode').value = s.pricingMode || 'fixed_bs';
+      document.getElementById('cfgBcvMode').value = s.bcvMode || 'auto';
+      document.getElementById('cfgManualBcvRate').value = s.manualBcvRate || currentBcvRate;
+      toggleManualRateField();
+      actualizarVistaPreviaFactura();
+
+      // WhatsApp
+      seleccionarProveedorWA(s.whatsappProvider || 'green_api');
+      document.getElementById('cfgGreenInstance').value = s.greenApiInstanceId || '';
+      document.getElementById('cfgGreenHost').value = s.greenApiHost || 'https://api.green-api.com';
+      document.getElementById('cfgGreenToken').value = '';
+      setSecretBadge('badgeGreenToken', s.greenApiTokenConfigured, s.greenApiTokenMasked);
+
+      document.getElementById('cfgEvoUrl').value = s.evolutionApiUrl || '';
+      document.getElementById('cfgEvoInstance').value = s.evolutionInstanceName || '';
+      document.getElementById('cfgEvoKey').value = '';
+      setSecretBadge('badgeEvoKey', s.evolutionApiKeyConfigured, s.evolutionApiKeyMasked);
+      document.getElementById('testWaPhone').value = s.storePhone || '';
+
+      // Resend
+      document.getElementById('cfgResendEnabled').checked = s.resendEnabled !== false;
+      document.getElementById('cfgResendFrom').value = s.resendFromEmail || '';
+      document.getElementById('cfgResendKey').value = '';
+      setSecretBadge('badgeResendKey', s.resendApiKeyConfigured, s.resendApiKeyMasked);
+
+      // Skylink
+      document.getElementById('cfgSkylinkUrl').value = s.skylinkBaseUrl || '';
+      document.getElementById('cfgSkylinkCode').value = s.skylinkCommerceCode || '';
+      document.getElementById('cfgSkylinkKey').value = '';
+      setSecretBadge('badgeSkylinkKey', s.skylinkApiKeyConfigured, s.skylinkApiKeyMasked);
+    }
+
+    async function guardarSettingsPatch(patch, okMsg) {
+      try {
+        const res = await fetch('/api/admin/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch)
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Error al guardar.');
+        showToast(okMsg || 'Configuración guardada correctamente.');
+        await cargarConfigAdmin();
+      } catch (err) {
+        showToast(err.message, 'err');
+      }
+    }
+
+    function guardarEmpresaSettings() {
+      guardarSettingsPatch({
+        storeName: document.getElementById('cfgStoreName').value,
+        storeRif: document.getElementById('cfgStoreRif').value,
+        storeAddress: document.getElementById('cfgStoreAddress').value,
+        storeCity: document.getElementById('cfgStoreCity').value,
+        storePhone: document.getElementById('cfgStorePhone').value,
+        storeLogoUrl: document.getElementById('cfgStoreLogoUrl').value,
+        invoiceFooter: document.getElementById('cfgInvoiceFooter').value,
+        pricingMode: document.getElementById('cfgPricingMode').value,
+        bcvMode: document.getElementById('cfgBcvMode').value,
+        manualBcvRate: Number(document.getElementById('cfgManualBcvRate').value)
+      }, '✓ Datos de empresa y factura guardados.');
+    }
+
+    function guardarWhatsAppSettings() {
+      guardarSettingsPatch({
+        whatsappProvider: document.getElementById('cfgWaProvider').value,
+        greenApiInstanceId: document.getElementById('cfgGreenInstance').value,
+        greenApiHost: document.getElementById('cfgGreenHost').value,
+        greenApiToken: document.getElementById('cfgGreenToken').value,
+        evolutionApiUrl: document.getElementById('cfgEvoUrl').value,
+        evolutionInstanceName: document.getElementById('cfgEvoInstance').value,
+        evolutionApiKey: document.getElementById('cfgEvoKey').value
+      }, '✓ Configuración de WhatsApp guardada.');
+    }
+
+    function guardarResendSettings() {
+      guardarSettingsPatch({
+        resendEnabled: document.getElementById('cfgResendEnabled').checked,
+        resendApiKey: document.getElementById('cfgResendKey').value,
+        resendFromEmail: document.getElementById('cfgResendFrom').value
+      }, '✓ Configuración de Resend guardada.');
+    }
+
+    function guardarSkylinkSettings() {
+      guardarSettingsPatch({
+        skylinkBaseUrl: document.getElementById('cfgSkylinkUrl').value,
+        skylinkCommerceCode: document.getElementById('cfgSkylinkCode').value,
+        skylinkApiKey: document.getElementById('cfgSkylinkKey').value
+      }, '✓ Credenciales de Skylink Pay guardadas.');
+    }
+
+    // Pruebas en vivo
+    async function probarWhatsApp() {
+      const phone = document.getElementById('testWaPhone').value.trim();
+      const out = document.getElementById('testWaResult');
+      out.textContent = 'Enviando mensaje de prueba…';
+      out.style.color = '#475569';
+      try {
+        const res = await fetch('/api/admin/test-whatsapp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone })
+        });
+        const json = await res.json();
+        out.textContent = (json.success ? '✓ ' : '✕ ') + (json.message || 'Completado');
+        out.style.color = json.success ? '#047857' : '#dc2626';
+      } catch (e) {
+        out.textContent = '✕ ' + e.message;
+        out.style.color = '#dc2626';
+      }
+    }
+
+    async function probarCorreo() {
+      const email = document.getElementById('testEmailDest').value.trim();
+      const out = document.getElementById('testEmailResult');
+      out.textContent = 'Enviando correo de prueba vía Resend…';
+      out.style.color = '#475569';
+      try {
+        const res = await fetch('/api/admin/test-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const json = await res.json();
+        out.textContent = (json.success ? '✓ ' : '✕ ') + (json.message || 'Completado');
+        out.style.color = json.success ? '#047857' : '#dc2626';
+      } catch (e) {
+        out.textContent = '✕ ' + e.message;
+        out.style.color = '#dc2626';
+      }
+    }
+
+    async function probarSkylink() {
+      const out = document.getElementById('testSkylinkResult');
+      out.textContent = 'Verificando firma HMAC y credenciales con Skylink…';
+      out.style.color = '#475569';
+      try {
+        const res = await fetch('/api/admin/test-skylink', { method: 'POST' });
+        const json = await res.json();
+        out.textContent = (json.success ? '✓ ' : '✕ ') + (json.message || 'Completado');
+        out.style.color = json.success ? '#047857' : '#dc2626';
+      } catch (e) {
+        out.textContent = '✕ ' + e.message;
+        out.style.color = '#dc2626';
+      }
+    }
+
+    // =====================================================
+    // AÑADIR PRODUCTO & ESCÁNER QR/BARRAS + CATÁLOGO
+    // =====================================================
+    async function toggleAdminCamera() {
+      const btn = document.getElementById('btnToggleAdminCam');
+      const laser = document.getElementById('adminScannerLaser');
+      const badge = document.getElementById('adminCamBadge');
+      const btnTorch = document.getElementById('btnAdminTorch');
+
+      if (adminScanner && adminScanner.running) {
+        adminScanner.stop();
+        btn.textContent = '📷 Iniciar Cámara';
+        laser.style.display = 'none';
+        btnTorch.style.display = 'none';
         return;
       }
 
-      const description = document.getElementById('linkConcept').value.trim() || 'Cobro con Skylink Pay';
-      const clientName = document.getElementById('linkClientName').value.trim() || 'Cliente';
-      const clientPhone = document.getElementById('linkClientPhone').value.trim();
+      if (!adminScanner) {
+        adminScanner = new window.SkyPayScanner({
+          videoEl: document.getElementById('adminScannerVideo'),
+          viewportEl: document.getElementById('adminScannerViewport'),
+          onStatus: (text, active) => {
+            badge.textContent = (active ? '● ' : '') + text;
+            badge.className = 'scanner-overlay-badge' + (active ? ' live' : '');
+          },
+          onError: (msg) => showToast(msg, 'err'),
+          onDetect: (code) => manejarCodigoEscaneadoAdmin(code)
+        });
+      }
 
+      try {
+        await adminScanner.start();
+        btn.textContent = '⏸ Pausar Cámara';
+        laser.style.display = 'block';
+        btnTorch.style.display = adminScanner.supportsTorch() ? 'inline-flex' : 'none';
+      } catch {}
+    }
+
+    async function toggleAdminTorch() {
+      if (!adminScanner) return;
+      const on = await adminScanner.toggleTorch();
+      document.getElementById('btnAdminTorch').textContent = on ? '🔦 ON' : '🔦';
+    }
+
+    async function manejarCodigoEscaneadoAdmin(code) {
+      playBeep();
+
+      // Caso 1: Modo Re-escanear código de un producto existente
+      if (rescanTargetProduct) {
+        const target = rescanTargetProduct;
+        cancelarReescaneo();
+        try {
+          const res = await fetch(`/api/products/${encodeURIComponent(target.id)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ barcode: code, code })
+          });
+          const json = await res.json();
+          if (!res.ok || !json.success) throw new Error(json.message || 'No se pudo actualizar el código.');
+          showToast(`✓ Código de "${target.name}" actualizado a ${code}`);
+          await cargarCatalogo();
+        } catch (err) {
+          showToast(err.message, 'err');
+        }
+        return;
+      }
+
+      // Caso 2: Escaneo normal en Añadir Producto
+      const existing = adminProducts.find(p => p.code === code || p.barcode === code);
+      if (existing) {
+        cargarProductoParaEditar(existing);
+        showToast(`Producto encontrado: ${existing.name}. Listo para editar.`);
+      } else {
+        limpiarFormProducto(false);
+        document.getElementById('prodBarcode').value = code;
+        document.getElementById('prodScanHint').textContent = `✓ Código nuevo capturado (${code}). Completa nombre y precio.`;
+        document.getElementById('prodName').focus();
+        showToast(`Código nuevo escaneado: ${code}`);
+      }
+    }
+
+    function iniciarReescaneoProducto(prodId) {
+      const prod = adminProducts.find(p => Number(p.id) === Number(prodId));
+      if (!prod) return;
+      rescanTargetProduct = prod;
+      const banner = document.getElementById('rescanBanner');
+      document.getElementById('rescanBannerText').textContent = `🎯 Re-escaneando código para "${prod.name}" (actual: ${prod.code})`;
+      banner.style.display = 'flex';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (!adminScanner || !adminScanner.running) {
+        toggleAdminCamera();
+      }
+    }
+
+    function cancelarReescaneo() {
+      rescanTargetProduct = null;
+      document.getElementById('rescanBanner').style.display = 'none';
+    }
+
+    function generarCodigoAleatorio() {
+      document.getElementById('prodBarcode').value = '759' + Math.floor(100000 + Math.random() * 900000);
+    }
+
+    function syncPriceFromBs() {
+      const bs = Number(document.getElementById('prodPriceBs').value);
+      if (Number.isFinite(bs) && bs > 0 && currentBcvRate > 0) {
+        document.getElementById('prodPriceUsd').value = (bs / currentBcvRate).toFixed(2);
+      }
+    }
+
+    function syncPriceFromUsd() {
+      const usd = Number(document.getElementById('prodPriceUsd').value);
+      if (Number.isFinite(usd) && usd > 0 && currentBcvRate > 0) {
+        document.getElementById('prodPriceBs').value = (usd * currentBcvRate).toFixed(2);
+      }
+    }
+
+    function cargarProductoParaEditar(prod) {
+      document.getElementById('editProductId').value = prod.id;
+      document.getElementById('prodBarcode').value = prod.code || prod.barcode || '';
+      document.getElementById('prodName').value = prod.name || '';
+      document.getElementById('prodPriceBs').value = Number(prod.priceBs || 0).toFixed(2);
+      document.getElementById('prodPriceUsd').value = Number(prod.priceUsd || (prod.priceBs / currentBcvRate)).toFixed(2);
+      document.getElementById('prodCategory').value = prod.category || 'General';
+      document.getElementById('prodIcon').value = prod.icon || '📦';
+      document.getElementById('prodFormHeading').textContent = `✏️ Editando: ${prod.name}`;
+      document.getElementById('btnSaveProduct').textContent = '💾 Actualizar Producto';
+      document.getElementById('btnCancelEditProd').style.display = 'inline-flex';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function limpiarFormProducto(resetHint = true) {
+      document.getElementById('editProductId').value = '';
+      document.getElementById('prodBarcode').value = '';
+      document.getElementById('prodName').value = '';
+      document.getElementById('prodPriceBs').value = '';
+      document.getElementById('prodPriceUsd').value = '';
+      document.getElementById('prodIcon').value = '📦';
+      document.getElementById('prodFormHeading').textContent = '📷 Añadir Producto por Escáner';
+      document.getElementById('btnSaveProduct').textContent = '💾 Guardar Producto';
+      document.getElementById('btnCancelEditProd').style.display = 'none';
+      if (resetHint) {
+        document.getElementById('prodScanHint').textContent = 'Si escaneas un código ya registrado, se cargará automáticamente para editarlo.';
+      }
+    }
+
+    document.getElementById('productCrudForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const editId = document.getElementById('editProductId').value.trim();
+      const payload = {
+        code: document.getElementById('prodBarcode').value.trim(),
+        barcode: document.getElementById('prodBarcode').value.trim(),
+        name: document.getElementById('prodName').value.trim(),
+        priceBs: Number(document.getElementById('prodPriceBs').value),
+        priceUsd: Number(document.getElementById('prodPriceUsd').value || 0),
+        category: document.getElementById('prodCategory').value,
+        icon: document.getElementById('prodIcon').value.trim() || '📦'
+      };
+
+      const btn = document.getElementById('btnSaveProduct');
       btn.disabled = true;
-      btn.innerHTML = '<span>⚡ Conectando con Skylink Pay...</span>';
+      try {
+        const url = editId ? `/api/products/${encodeURIComponent(editId)}` : '/api/products';
+        const method = editId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'No se pudo guardar el producto.');
+        showToast(editId ? `✓ "${payload.name}" actualizado.` : `✓ "${payload.name}" guardado en catálogo.`);
+        limpiarFormProducto();
+        await cargarCatalogo();
+      } catch (err) {
+        showToast(err.message, 'err');
+      } finally {
+        btn.disabled = false;
+      }
+    });
 
+    async function eliminarProducto(id, name) {
+      if (!confirm(`¿Eliminar "${name}" del catálogo?`)) return;
+      try {
+        const res = await fetch(`/api/products/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Error al eliminar.');
+        showToast(`🗑️ "${name}" eliminado.`);
+        await cargarCatalogo();
+      } catch (err) {
+        showToast(err.message, 'err');
+      }
+    }
+
+    async function cargarCatalogo() {
+      const res = await fetch('/api/products');
+      const json = await res.json();
+      if (json.success) {
+        adminProducts = json.data || [];
+        if (json.bcvRate) {
+          currentBcvRate = Number(json.bcvRate);
+          document.getElementById('topBcvBadge').textContent = `BCV: Bs. ${currentBcvRate.toFixed(2)}`;
+        }
+        document.getElementById('prodTotalCount').textContent = adminProducts.length;
+        renderizarCatalogo();
+      }
+    }
+
+    function renderizarCatalogo() {
+      const q = (document.getElementById('prodSearchInput').value || '').toLowerCase().trim();
+      const tbody = document.getElementById('adminProductsTbody');
+      const filtered = adminProducts.filter(p =>
+        !q ||
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.code || '').toLowerCase().includes(q) ||
+        (p.category || '').toLowerCase().includes(q)
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding:24px;">No hay productos que coincidan.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(p => `
+        <tr>
+          <td>
+            <strong>${p.icon || '📦'} ${escapeHtml(p.name)}</strong>
+            <div style="font-size:11px; color:#64748b;">${escapeHtml(p.category || 'General')}</div>
+          </td>
+          <td><span class="code-chip">${escapeHtml(p.code || '')}</span></td>
+          <td>
+            <strong>Bs. ${Number(p.priceBs || 0).toFixed(2)}</strong>
+            <div style="font-size:11px; color:#64748b;">$${Number(p.priceUsd || 0).toFixed(2)} USD</div>
+          </td>
+          <td style="text-align:right; white-space:nowrap;">
+            <button type="button" class="btn btn-outline btn-sm" onclick='cargarProductoParaEditar(${JSON.stringify(p).replace(/'/g, "&#39;")})' title="Editar nombre o precio">✏️</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="iniciarReescaneoProducto(${p.id})" title="Re-escanear código de barras">📷</button>
+            <button type="button" class="btn btn-danger btn-sm" onclick="eliminarProducto(${p.id}, '${escapeHtml(p.name).replace(/'/g, '')}')" title="Eliminar">🗑️</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function exportarProductosCSV() {
+      const header = 'barcode,name,priceBs,priceUsd,category,icon\n';
+      const rows = adminProducts.map(p =>
+        `"${(p.code || '').replace(/"/g, '""')}","${(p.name || '').replace(/"/g, '""')}",${Number(p.priceBs || 0).toFixed(2)},${Number(p.priceUsd || 0).toFixed(2)},"${(p.category || 'General').replace(/"/g, '""')}","${p.icon || '📦'}"`
+      ).join('\n');
+      descargarArchivo(header + rows, 'catalogo-skypay.csv', 'text/csv;charset=utf-8;');
+    }
+
+    async function importarProductosCSV(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if (lines.length < 2) throw new Error('El CSV debe tener encabezado y al menos 1 fila.');
+        const items = [];
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
+          if (cols.length >= 3) {
+            items.push({
+              barcode: cols[0],
+              name: cols[1],
+              priceBs: Number(cols[2]) || 0,
+              priceUsd: Number(cols[3]) || 0,
+              category: cols[4] || 'General',
+              icon: cols[5] || '📦'
+            });
+          }
+        }
+        const res = await fetch('/api/products/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items })
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Error al importar CSV.');
+        showToast(`✓ ${json.count} productos importados a la base de datos.`);
+        await cargarCatalogo();
+      } catch (err) {
+        showToast(err.message, 'err');
+      } finally {
+        event.target.value = '';
+      }
+    }
+
+    // =====================================================
+    // CLIENTES CRM & ÓRDENES
+    // =====================================================
+    async function cargarClientes() {
+      const tbody = document.getElementById('customersTbody');
+      try {
+        const res = await fetch('/api/admin/customers');
+        const json = await res.json();
+        if (!json.success) return;
+        adminCustomers = json.data || [];
+        document.getElementById('customersCount').textContent = adminCustomers.length;
+        if (adminCustomers.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:22px;">Aún no hay clientes registrados. Se guardarán automáticamente en su primera compra.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = adminCustomers.map(c => `
+          <tr>
+            <td><strong>${escapeHtml(c.cedula)}</strong></td>
+            <td>${escapeHtml(c.fullName)}</td>
+            <td>${escapeHtml(c.email)}</td>
+            <td>+${escapeHtml(c.phone)}</td>
+            <td><strong>${c.ordersCount || 0}</strong></td>
+            <td style="font-size:12px; color:#64748b;">${c.lastOrderAt ? new Date(c.lastOrderAt).toLocaleString('es-VE') : '—'}</td>
+          </tr>
+        `).join('');
+      } catch {}
+    }
+
+    function exportarClientesCSV() {
+      const header = 'cedula,nombre,correo,whatsapp,compras\n';
+      const rows = adminCustomers.map(c =>
+        `"${c.cedula}","${(c.fullName || '').replace(/"/g, '""')}","${c.email}","${c.phone}",${c.ordersCount || 0}`
+      ).join('\n');
+      descargarArchivo(header + rows, 'clientes-skypay.csv', 'text/csv;charset=utf-8;');
+    }
+
+    async function cargarOrdenes() {
+      const tbody = document.getElementById('ordersTbody');
+      try {
+        const res = await fetch('/api/orders');
+        const json = await res.json();
+        const list = json.data || [];
+        if (list.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:22px;">Sin transacciones registradas aún.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = list.map(o => `
+          <tr>
+            <td><strong>#${escapeHtml(o.orderId || o.identifier)}</strong></td>
+            <td style="font-size:12px; color:#64748b;">${new Date(o.createdAt).toLocaleString('es-VE')}</td>
+            <td>
+              <div><strong>${escapeHtml(o.clientName || 'Cliente')}</strong></div>
+              <div style="font-size:11px; color:#64748b;">${escapeHtml(o.clientId || '')} ${o.clientEmail ? '· ' + escapeHtml(o.clientEmail) : ''}</div>
+            </td>
+            <td><strong>Bs. ${Number(o.amountBs ?? o.amountVes ?? 0).toFixed(2)}</strong></td>
+            <td><span class="status-pill ${o.status}">${o.status === 'paid' ? 'PAGADO' : o.status === 'failed' ? 'FALLIDO' : 'PENDIENTE'}</span></td>
+            <td style="white-space:nowrap;">
+              ${o.status === 'paid' ? `<a href="/factura?order_id=${encodeURIComponent(o.orderId || o.identifier)}" target="_blank" class="btn btn-outline btn-sm">🧾 Factura</a>` : `<a href="${escapeHtml(o.paymentUrl || '#')}" target="_blank" class="btn btn-outline btn-sm">🔗 Link</a>`}
+            </td>
+          </tr>
+        `).join('');
+      } catch {}
+    }
+
+    // =====================================================
+    // LINKS RÁPIDOS
+    // =====================================================
+    async function generarLinkRapido() {
+      const amountBs = Number(document.getElementById('linkAmountBs').value);
+      if (!amountBs || amountBs <= 0) return showToast('Ingresa un monto mayor a 0 Bs.', 'err');
+      const btn = document.getElementById('btnGenQuickLink');
+      btn.disabled = true;
+      btn.textContent = 'Generando link en Skylink…';
       try {
         const res = await fetch('/api/generate-link', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            amount_bs: amountBs,
-            description,
-            client_name: clientName,
-            client_phone: clientPhone,
-            items: itemsSeleccionadosCatalogo
+            amountBs,
+            concept: document.getElementById('linkConcept').value.trim() || 'Pago Skylink Pay',
+            clientName: document.getElementById('linkClientName').value.trim() || 'Cliente',
+            clientPhone: document.getElementById('linkClientPhone').value.trim()
           })
         });
-
         const json = await res.json();
-        if (!json.success) {
-          throw new Error(json.message || 'Error al generar link');
-        }
-
-        mostrarResultadoLink(json);
+        if (!res.ok || !json.success) throw new Error(json.message || 'No se pudo generar el link.');
+        lastQuickLinkUrl = json.paymentUrl;
+        document.getElementById('quickLinkPlaceholder').style.display = 'none';
+        document.getElementById('quickLinkResult').style.display = 'block';
+        document.getElementById('qlAmount').textContent = `Bs. ${Number(json.amountBs).toFixed(2)} (≈ $${Number(json.amountUsd).toFixed(2)})`;
+        document.getElementById('qlUrl').textContent = json.paymentUrl;
+        document.getElementById('qlOpen').href = json.paymentUrl;
+        document.getElementById('qlWa').href = json.whatsappUrl;
+        document.getElementById('qlQr').src = json.qrCodeUrl;
+        showToast('✓ Link de pago generado con éxito.');
       } catch (err) {
-        errBox.textContent = err.message;
-        errBox.hidden = false;
+        showToast(err.message, 'err');
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '<span style="font-size: 16px;">⚡ Generar Link de Pago Oficial Skylink</span><span style="font-size: 11px; opacity: 0.85;">Crea la transacción bancaria en vivo en dev-axis-payment</span>';
+        btn.textContent = '⚡ Generar Link Oficial Skylink';
       }
     }
 
-    function mostrarResultadoLink(data) {
-      linkActual = data;
-      document.getElementById('placeholderResultado').style.display = 'none';
-      document.getElementById('contenidoResultado').style.display = 'block';
-
-      document.getElementById('resOrderId').textContent = data.orderId;
-      document.getElementById('resMontoBs').textContent = `Bs. ${Number(data.amountBs).toFixed(2)}`;
-      document.getElementById('resMontoUsd').textContent = `≈ $${Number(data.amountUsd).toFixed(2)} USD`;
-      document.getElementById('resConcepto').textContent = `Concepto: ${data.description}`;
-
-      const payUrl = data.paymentUrl || data.url;
-      document.getElementById('resUrlBox').textContent = payUrl;
-      document.getElementById('btnAbrirUrl').href = payUrl;
-      document.getElementById('btnCompartirWA').href = data.whatsappUrl;
-      document.getElementById('resQrImage').src = data.qrCodeUrl;
-
-      const badge = document.getElementById('badgeEstadoLink');
-      badge.className = 'status-badge pending';
-      badge.textContent = '⏳ Esperando Pago';
-
-      // Iniciar sondeo de estado
-      if (pollIntervalLink) clearInterval(pollIntervalLink);
-      pollIntervalLink = setInterval(() => verificarEstadoLink(data.orderId), 3000);
+    function copiarLinkRapido() {
+      if (!lastQuickLinkUrl) return;
+      navigator.clipboard.writeText(lastQuickLinkUrl);
+      showToast('📋 Enlace copiado al portapapeles.');
     }
 
-    async function verificarEstadoLink(orderId) {
-      try {
-        const res = await fetch(`/api/order-status/${orderId}`);
-        const json = await res.json();
-        if (json.success && json.data) {
-          const st = json.data.status;
-          if (st === 'paid' || st === 'AUTHORIZED') {
-            clearInterval(pollIntervalLink);
-            const badge = document.getElementById('badgeEstadoLink');
-            badge.className = 'status-badge paid';
-            badge.textContent = '✅ PAGADO Y ACREDITADO';
-          }
-        }
-      } catch (e) {}
+    function descargarArchivo(content, filename, type) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
     }
 
-    function copiarUrlResultado() {
-      if (!linkActual) return;
-      const url = linkActual.paymentUrl || linkActual.url;
-      navigator.clipboard.writeText(url).then(() => {
-        alert('¡Enlace de Skylink Pay copiado al portapapeles!');
-      });
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
     }
 
-    // ==========================================
-    // LISTA DE ÓRDENES Y TRANSACCIONES
-    // ==========================================
-    async function cargarOrdenes() {
-      const tbody = document.getElementById('adminOrdersTableBody');
-      try {
-        const res = await fetch('/api/orders');
-        const json = await res.json();
-        if (!json.success || !json.data || json.data.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 30px;">No hay órdenes registradas todavía</td></tr>';
-          return;
-        }
-
-        tbody.innerHTML = '';
-        json.data.forEach(ord => {
-          const row = document.createElement('tr');
-          const isPaid = ord.status === 'paid' || ord.status === 'AUTHORIZED';
-          const badgeClass = isPaid ? 'status-badge paid' : (ord.status === 'failed' ? 'status-badge failed' : 'status-badge pending');
-          const badgeLabel = isPaid ? '✅ PAGADO' : (ord.status === 'failed' ? '❌ FALLIDO' : '⏳ PENDIENTE');
-          const payUrl = ord.skylinkUrl || ord.paymentUrl;
-
-          row.innerHTML = `
-            <td><strong>${ord.orderId || ord.sessionId}</strong></td>
-            <td style="font-size: 11px; color: #64748b;">${new Date(ord.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
-            <td><span style="font-size: 11px; background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">${ord.source || 'Directo'}</span></td>
-            <td>
-              <div><strong>${ord.clientName || 'Cliente'}</strong></div>
-              <div style="font-size: 11px; color: #64748b;">${ord.description || 'Cobro'}</div>
-            </td>
-            <td>
-              <div><strong>Bs. ${(ord.amountVes || (ord.amount * bcvRate)).toFixed(2)}</strong></div>
-              <div style="font-size: 11px; color: #64748b;">$${Number(ord.amount).toFixed(2)} USD</div>
-            </td>
-            <td><span class="${badgeClass}">${badgeLabel}</span></td>
-            <td>
-              <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                <button class="btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="consultarEstadoOrden('${ord.orderId || ord.sessionId}')">🔍 Verificar</button>
-                <a href="${payUrl}" target="_blank" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; text-decoration: none;">↗ Abrir</a>
-              </div>
-            </td>
-          `;
-          tbody.appendChild(row);
-        });
-      } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #ef4444;">Error al cargar órdenes</td></tr>';
-      }
-    }
-
-    async function consultarEstadoOrden(id) {
-      try {
-        const res = await fetch(`/api/order-status/${id}`);
-        const json = await res.json();
-        if (json.success) {
-          alert(`Estado de la orden ${id}: ${json.data.status.toUpperCase()}\nReferencia: ${json.data.reference || 'N/A'}`);
-          cargarOrdenes();
-        }
-      } catch (e) {
-        alert('Error al verificar estado');
-      }
-    }
-
-    // ==========================================
-    // SIMULADOR DE WEBHOOKS & API
-    // ==========================================
-    async function simularEnvioWebhook() {
-      const msgBox = document.getElementById('simResultMsg');
-      msgBox.hidden = true;
-
-      const amountBs = parseFloat(document.getElementById('simAmountBs').value);
-      const concept = document.getElementById('simConcept').value;
-
-      try {
-        const res = await fetch('/api/webhooks/incoming', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'create_payment_link',
-            amount_bs: amountBs,
-            concept: concept,
-            customer_name: 'Cliente App Externa'
-          })
-        });
-
-        const json = await res.json();
-        if (json.success) {
-          msgBox.hidden = false;
-          msgBox.style.background = '#ecfdf5';
-          msgBox.style.borderColor = '#a7f3d0';
-          msgBox.style.color = '#047857';
-          msgBox.innerHTML = `<strong>¡Webhook procesado con éxito!</strong><br>Orden creada: ${json.orderId}<br>Link de pago: <a href="${json.paymentUrl}" target="_blank">${json.paymentUrl}</a>`;
-          cargarLogsWebhooks();
-        }
-      } catch (e) {
-        msgBox.hidden = false;
-        msgBox.style.background = '#fee2e2';
-        msgBox.style.borderColor = '#fca5a5';
-        msgBox.style.color = '#b91c1c';
-        msgBox.textContent = 'Error al enviar webhook simulado.';
-      }
-    }
-
-    async function cargarLogsWebhooks() {
-      const container = document.getElementById('webhookLogsContainer');
-      try {
-        const res = await fetch('/api/webhooks/logs');
-        const json = await res.json();
-        if (!json.success || !json.data || json.data.length === 0) {
-          container.innerHTML = '<div style="color: #94a3b8; font-size: 12px; text-align: center; padding: 20px;">Sin eventos de webhook registrados aún.</div>';
-          return;
-        }
-
-        container.innerHTML = '';
-        json.data.forEach(log => {
-          const item = document.createElement('div');
-          item.className = 'webhook-log-item';
-          item.innerHTML = `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-              <span style="font-weight: 700; color: #0284c7;">${log.type.toUpperCase()}</span>
-              <span style="color: #94a3b8; font-size: 10px;">${new Date(log.timestamp).toLocaleTimeString()}</span>
-            </div>
-            <pre style="margin: 0; font-family: monospace; font-size: 11px; background: #f8fafc; padding: 6px; border-radius: 4px; overflow-x: auto;">${JSON.stringify(log.body || log, null, 2)}</pre>
-          `;
-          container.appendChild(item);
-        });
-      } catch (e) {}
-    }
-
-    async function cargarAjustesTienda() {
-      try {
-        const res = await fetch('/api/store-settings');
-        const json = await res.json();
-        if (json.success && json.data) {
-          const d = json.data;
-          document.getElementById('configStoreName').value = d.storeName || '';
-          document.getElementById('configStoreRif').value = d.storeRif || '';
-          document.getElementById('configStorePhone').value = d.storePhone || '';
-          document.getElementById('inputOutboundUrl').value = d.webhookUrl || '';
-          document.getElementById('inputWebhookSecret').value = d.webhookSecret || '';
-        }
-      } catch (e) {}
-    }
-
-    async function guardarConfigWebhook() {
-      const url = document.getElementById('inputOutboundUrl').value.trim();
-      try {
-        const res = await fetch('/api/store-settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ webhookUrl: url })
-        });
-        alert('¡Configuración de Webhook guardada exitosamente!');
-      } catch (e) {
-        alert('Error al guardar configuración');
-      }
-    }
-
-    async function guardarAjustesTienda() {
-      const storeName = document.getElementById('configStoreName').value.trim();
-      const storeRif = document.getElementById('configStoreRif').value.trim();
-      const storePhone = document.getElementById('configStorePhone').value.trim();
-
-      try {
-        const res = await fetch('/api/store-settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ storeName, storeRif, storePhone })
-        });
-        alert('¡Datos de la tienda guardados correctamente!');
-      } catch (e) {
-        alert('Error al guardar');
-      }
-    }
-
-    // Modal de Tasa BCV
-    function abrirModalTasa() {
-      document.getElementById('modalRateEdit').style.display = 'flex';
-    }
-    function cerrarModalTasa() {
-      document.getElementById('modalRateEdit').style.display = 'none';
-    }
-
-    async function guardarTasaDesdeModal() {
-      const val = parseFloat(document.getElementById('modalRateInput').value);
-      if (val > 0) {
-        await actualizarTasaRemota(val);
-        cerrarModalTasa();
-      }
-    }
-
-    async function guardarTasaBCV() {
-      const val = parseFloat(document.getElementById('configRateInput').value);
-      if (val > 0) {
-        await actualizarTasaRemota(val);
-        alert('Tasa BCV actualizada correctamente');
-      }
-    }
-
-    async function actualizarTasaRemota(val) {
-      try {
-        const res = await fetch('/api/bcv-rate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rate: val })
-        });
-        const json = await res.json();
-        if (json.success) {
-          bcvRate = Number(json.rate);
-          actualizarTextosTasa();
-          cargarCatalogo();
-        }
-      } catch (e) {}
-    }
-
-    window.addEventListener('DOMContentLoaded', inicializar);
+    verificarSesion();
   </script>
 </body>
 </html>

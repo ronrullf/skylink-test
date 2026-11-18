@@ -771,9 +771,9 @@
   <!-- Barra Superior Kiosco -->
   <header class="kiosk-header">
     <a class="kiosk-brand" href="/autopago">
-      <span class="kiosk-logo-badge">⚡</span>
+      <span class="kiosk-logo-badge" id="kioskLogoBadge">⚡</span>
       <div>
-        <span>SkyPay Kiosco</span>
+        <span id="kioskBrandName">SkyPay Kiosco</span>
         <div style="font-size:11px; font-weight:500; color:#94a3b8;">Autopago Express · Skylink Pay</div>
       </div>
     </a>
@@ -2237,6 +2237,24 @@
     }
     window.addEventListener('resize', handleOrientationChange);
     window.addEventListener('orientationchange', handleOrientationChange);
+
+    // Cargar identidad comercial configurada en /admin (White-Label)
+    (async function cargarMarcaComercial() {
+      try {
+        const res = await fetch('/api/public-config');
+        const json = await res.json();
+        if (json.success && json.data) {
+          const name = json.data.storeName || 'SkyPay Kiosco';
+          const brandEl = document.getElementById('kioskBrandName');
+          if (brandEl) brandEl.textContent = name;
+          document.title = `${name} · Autopago Express`;
+          const logoEl = document.getElementById('kioskLogoBadge');
+          if (logoEl && json.data.storeLogoUrl) {
+            logoEl.innerHTML = `<img src="${json.data.storeLogoUrl}" alt="${name}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;">`;
+          }
+        }
+      } catch {}
+    })();
   </script>
 
   <!-- Barra fija de pago para Split View / móviles (< 740px): botón de pagar 100% visible sin scroll -->

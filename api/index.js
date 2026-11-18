@@ -4,12 +4,17 @@ const querystring = require('querystring');
 const https = require('https');
 const http = require('http');
 const { request: fetchSkylinkPay, paymentFromResponse } = require('../lib/skylink');
-const { normalizePhone, sendInvoiceWhatsApp } = require('../lib/whatsapp');
-const { sendInvoiceEmail } = require('../lib/email');
-
-// Configuración Oficial Skylink Pay (Valink Group)
-const SKYLINK_BASE_URL = process.env.SKYLINK_BASE_URL || 'https://dev-axis-payment.valinkgroup.com';
-const SKYLINK_COMMERCE_CODE = process.env.SKYLINK_COMMERCE_CODE || '754947900700';
+const { normalizePhone, sendInvoiceWhatsApp, sendTestWhatsApp } = require('../lib/whatsapp');
+const { sendInvoiceEmail, sendTestEmail } = require('../lib/email');
+const {
+  ADMIN_COOKIE_NAME,
+  normalizeCedula,
+  createAdminToken,
+  verifyAdminToken,
+  verifyAdminPassword,
+  extractAdminTokenFromReq
+} = require('../lib/crypto');
+const db = require('../lib/db');
 
 // Tasa oficial referencial BCV (Bolívares por Dólar) - Integración con DolarAPI Venezuela (https://dolarapi.com/docs/venezuela/)
 let bcvRate = 37.50;
@@ -51,40 +56,78 @@ async function fetchLiveBcvRate(force = false) {
   return bcvRate;
 }
 
-// En ejecución en vivo, sincronizar al arrancar
-const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.NODE_TEST_CONTEXT);
-if (!isTestEnv) {
+// En ejecución en vivo, sincronizar al arrancar; en tests, iniciar almacén limpio
+const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.NODE_TEST_CONTEXT) || process.execArgv.includes('--test');
+if (isTestEnv) {
+  db.resetMemoryStore();
+} else {
   fetchLiveBcvRate().catch(() => {});
 }
 
-// Configuración de la tienda y webhooks
-let storeSettings = {
-  storeName: 'Mi Tienda C.A.',
-  storeRif: 'J-50733628-0',
-  storePhone: '584121234567',
-  skylinkCommerceCode: SKYLINK_COMMERCE_CODE,
-  skylinkBaseUrl: SKYLINK_BASE_URL,
-  webhookSecret: 'skypay_secret_' + crypto.randomBytes(8).toString('hex'),
-  webhookUrl: '' // URL externa a donde notificar pagos aprobados
-};
-
-// Almacén en memoria de órdenes, transacciones y webhooks
-const sessions = new Map();
-const orders = new Map();
+// Logs de webhooks en memoria (diagnóstico)
 const webhookLogs = [];
 
-function indexPayment(record) {
-  for (const key of [record.identifier, record.orderId, record.sessionId, record.token]) {
-    if (!key) continue;
-    orders.set(key, record);
-    sessions.set(key, record);
+async function getEffectiveBcvRate(settings = null) {
+  const s = settings || await db.getStoreSettings();
+  if (s && s.bcvMode === 'manual' && Number(s.manualBcvRate) > 0) {
+    return Number(s.manualBcvRate);
   }
+  return bcvRate;
 }
 
-async function refreshPaymentStatus(record) {
+function buildSkylinkOverride(settings) {
+  if (!settings) return null;
+  return {
+    apiKey: settings.skylinkApiKey || process.env.SKYLINK_API_KEY || '',
+    commerceCode: settings.skylinkCommerceCode || process.env.SKYLINK_COMMERCE_CODE || '',
+    baseUrl: settings.skylinkBaseUrl || process.env.SKYLINK_BASE_URL || 'https://dev-axis-payment.valinkgroup.com'
+  };
+}
+
+function isAdminAuthenticated(req) {
+  const token = extractAdminTokenFromReq(req);
+  return verifyAdminToken(token);
+}
+
+function requireAdmin(req, res) {
+  if (isAdminAuthenticated(req)) return true;
+  res.writeHead(401, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({
+    success: false,
+    code: 'ADMIN_AUTH_REQUIRED',
+    message: 'Sesión de administrador requerida. Inicia sesión en /admin.'
+  }));
+  return false;
+}
+
+function formatProductForClient(p, effectiveRate, pricingMode) {
+  let effectivePriceBs = Number(p.priceBs || 0);
+  let effectivePriceUsd = Number(p.priceUsd || 0);
+  if (pricingMode === 'usd_bcv' && effectivePriceUsd > 0 && effectiveRate > 0) {
+    effectivePriceBs = Number((effectivePriceUsd * effectiveRate).toFixed(2));
+  } else if (effectivePriceBs > 0 && effectiveRate > 0) {
+    effectivePriceUsd = Number((effectivePriceBs / effectiveRate).toFixed(2));
+  }
+  return {
+    ...p,
+    code: p.code || p.barcode || '',
+    barcode: p.barcode || p.code || '',
+    priceBs: effectivePriceBs,
+    priceUsd: effectivePriceUsd,
+    bcvRate: effectiveRate
+  };
+}
+
+async function indexPayment(record) {
+  return await db.saveOrder(record);
+}
+
+async function refreshPaymentStatus(record, settings = null) {
   if (!record || !record.token || record.status !== 'pending') return record;
 
-  const result = await fetchSkylinkPay(`/api/v1/merchant/transactions/token/${record.token}`, 'GET');
+  const s = settings || await db.getStoreSettings();
+  const skylinkOverride = buildSkylinkOverride(s);
+  const result = await fetchSkylinkPay(`/api/v1/merchant/transactions/token/${record.token}`, 'GET', null, skylinkOverride);
   if (!result.ok || !result.data) return record;
 
   const transaction = result.data.data || result.data;
@@ -94,33 +137,17 @@ async function refreshPaymentStatus(record) {
     record.reference = transaction.reference || transaction.authorizationCode || record.reference || '';
     record.paymentMethod = transaction.paymentMethod || transaction.payment_method || record.paymentMethod || 'Skylink Pay';
     record.paidAt = transaction.paidAt || transaction.paid_at || new Date().toISOString();
+    await db.saveOrder(record);
   } else if (['FAILED', 'REJECTED', 'CANCELLED', 'EXPIRED'].includes(upstreamStatus)) {
     record.status = 'failed';
+    await db.saveOrder(record);
   }
   return record;
 }
 
-// Catálogo de productos oficial (incluye productos con precios exactos de 18, 19, 20 y 24 Bs)
-let CATALOGO_PRODUCTOS = [
-  { id: 1, name: "Harina PAN 1kg", code: "7591001", priceBs: 25.00, category: "Víveres", icon: "🌽", keywords: ["harina pan", "harina", "pan"] },
-  { id: 2, name: "Café Molido 100g", code: "7591002", priceBs: 24.50, category: "Bebidas", icon: "☕", keywords: ["cafe", "café", "molido"] },
-  { id: 3, name: "Arroz Blanco 1kg", code: "7591473005492", priceBs: 23.50, category: "Víveres", icon: "🍚", keywords: ["arroz blanco", "arroz"] },
-  { id: 4, name: "Pasta Spaghetti 500g", code: "7591003", priceBs: 19.00, category: "Víveres", icon: "🍝", keywords: ["pasta", "spaghetti", "fideos"] },
-  { id: 5, name: "Azúcar Refinada 1kg", code: "7591005", priceBs: 22.00, category: "Víveres", icon: "🧂", keywords: ["azucar", "azúcar"] },
-  { id: 6, name: "Aceite Vegetal 500ml", code: "7591006", priceBs: 25.00, category: "Víveres", icon: "🍳", keywords: ["aceite vegetal", "aceite"] },
-  { id: 7, name: "Margarina con Sal 250g", code: "7591007", priceBs: 23.00, category: "Lácteos", icon: "🧈", keywords: ["margarina", "mavesa", "mantequilla"] },
-  { id: 8, name: "Leche en Polvo 125g", code: "7591008", priceBs: 24.00, category: "Lácteos", icon: "🥛", keywords: ["leche", "leche en polvo"] },
-  { id: 9, name: "Galletas de Vainilla 150g", code: "7591009", priceBs: 18.00, category: "Snacks", icon: "🍪", keywords: ["galletas", "maria", "vainilla"] },
-  { id: 10, name: "Salsa de Tomate 397g", code: "7591010", priceBs: 22.50, category: "Salsas", icon: "🍅", keywords: ["salsa de tomate", "ketchup"] },
-  { id: 11, name: "Mayonesa Tradicional 175g", code: "7591011", priceBs: 24.00, category: "Salsas", icon: "🥣", keywords: ["mayonesa", "mavesa"] },
-  { id: 12, name: "Refresco Lata 355ml", code: "7591012", priceBs: 20.00, category: "Bebidas", icon: "🥤", keywords: ["refresco", "soda", "lata"] },
-  { id: 13, name: "Atún en Aceite 140g", code: "7591013", priceBs: 25.00, category: "Víveres", icon: "🐟", keywords: ["atun", "atún"] },
-  { id: 14, name: "Caraotas Negras 500g", code: "7591014", priceBs: 22.00, category: "Víveres", icon: "🫘", keywords: ["caraotas", "frijoles"] }
-];
-
 // Helper para calcular precio USD en base a Bs
-function getProductPriceUsd(priceBs) {
-  return Number((priceBs / bcvRate).toFixed(2));
+function getProductPriceUsd(priceBs, rate = bcvRate) {
+  return Number((priceBs / (rate || 37.50)).toFixed(2));
 }
 
 // Helper para convertir monto en Bs a céntimos enteros (Skylink Pay)
@@ -135,8 +162,9 @@ function toCentimos(amountBs) {
 }
 
 // Despacho de Webhook saliente cuando se confirma un pago
-async function dispatchOutboundWebhook(event, data) {
-  if (!storeSettings.webhookUrl) return;
+async function dispatchOutboundWebhook(event, data, settings = null) {
+  const s = settings || await db.getStoreSettings();
+  if (!s.webhookUrl) return;
   try {
     const payload = JSON.stringify({
       event,
@@ -144,10 +172,10 @@ async function dispatchOutboundWebhook(event, data) {
       data
     });
 
-    const parsed = new URL(storeSettings.webhookUrl);
+    const parsed = new URL(s.webhookUrl);
     const client = parsed.protocol === 'https:' ? https : http;
 
-    const signature = crypto.createHmac('sha256', storeSettings.webhookSecret)
+    const signature = crypto.createHmac('sha256', s.webhookSecret || '')
       .update(payload)
       .digest('hex');
 
@@ -168,7 +196,7 @@ async function dispatchOutboundWebhook(event, data) {
       res.on('end', () => {
         webhookLogs.unshift({
           type: 'outbound',
-          url: storeSettings.webhookUrl,
+          url: s.webhookUrl,
           event,
           statusCode: res.statusCode,
           timestamp: new Date().toISOString(),
@@ -181,7 +209,7 @@ async function dispatchOutboundWebhook(event, data) {
     req.on('error', (err) => {
       webhookLogs.unshift({
         type: 'outbound',
-        url: storeSettings.webhookUrl,
+        url: s.webhookUrl,
         event,
         statusCode: 500,
         timestamp: new Date().toISOString(),
@@ -195,30 +223,34 @@ async function dispatchOutboundWebhook(event, data) {
   } catch (e) {}
 }
 
-function parseOrderFromMessage(text) {
+async function parseOrderFromMessage(text) {
   const normalized = (text || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const foundItems = [];
+  const settings = await db.getStoreSettings();
+  const effectiveRate = await getEffectiveBcvRate(settings);
+  const catalog = (await db.listProducts()).map(p => formatProductForClient(p, effectiveRate, settings.pricingMode));
 
-  for (const prod of CATALOGO_PRODUCTOS) {
+  for (const prod of catalog) {
+    const keywords = Array.isArray(prod.keywords) && prod.keywords.length > 0 ? prod.keywords : [prod.name.toLowerCase()];
     let matched = false;
-    for (const kw of prod.keywords) {
-      if (normalized.includes(kw)) {
+    for (const kw of keywords) {
+      if (kw && normalized.includes(kw)) {
         matched = true;
         break;
       }
     }
     if (matched) {
       let qty = 1;
-      const kwPattern = prod.keywords.join('|');
-      const matchBefore = normalized.match(new RegExp(`(\\d+)\\s*(?:kilos?|paquetes?|unidades?|kg)?\\s*(?:de\\s*)?(?:${kwPattern})`));
-      const matchAfter = normalized.match(new RegExp(`(?:${kwPattern})\\s*(?:x\\s*)?(\\d+)`));
+      const kwPattern = keywords.filter(Boolean).join('|');
+      const matchBefore = kwPattern ? normalized.match(new RegExp(`(\\d+)\\s*(?:kilos?|paquetes?|unidades?|kg)?\\s*(?:de\\s*)?(?:${kwPattern})`)) : null;
+      const matchAfter = kwPattern ? normalized.match(new RegExp(`(?:${kwPattern})\\s*(?:x\\s*)?(\\d+)`)) : null;
       if (matchBefore && matchBefore[1]) {
         qty = parseInt(matchBefore[1], 10);
       } else if (matchAfter && matchAfter[1]) {
         qty = parseInt(matchAfter[1], 10);
-      } else if (normalized.includes('dos ' + prod.keywords[0]) || normalized.includes('2 ' + prod.keywords[0])) {
+      } else if (normalized.includes('dos ' + keywords[0]) || normalized.includes('2 ' + keywords[0])) {
         qty = 2;
-      } else if (normalized.includes('tres ' + prod.keywords[0]) || normalized.includes('3 ' + prod.keywords[0])) {
+      } else if (normalized.includes('tres ' + keywords[0]) || normalized.includes('3 ' + keywords[0])) {
         qty = 3;
       }
       foundItems.push({
@@ -226,7 +258,7 @@ function parseOrderFromMessage(text) {
         name: prod.name,
         code: prod.code,
         priceBs: prod.priceBs,
-        price: getProductPriceUsd(prod.priceBs),
+        price: getProductPriceUsd(prod.priceBs, effectiveRate),
         qty: qty,
         icon: prod.icon
       });
@@ -277,17 +309,203 @@ async function handleApi(req, res) {
     }
 
     // ==========================================
-    // 1. TASA OFICIAL BCV (DolarAPI Venezuela)
+    // 0. AUTENTICACIÓN ADMIN (Panel Comercial)
     // ==========================================
-    if (pathname === '/api/bcv-rate' && req.method === 'GET') {
-      if (!isTestEnv || parsedUrl.searchParams.get('sync') === '1') {
-        try { await fetchLiveBcvRate(parsedUrl.searchParams.get('force') === '1'); } catch (e) {}
-      }
+    if (pathname === '/api/admin/session' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({
         success: true,
-        rate: bcvRate,
-        provider: bcvMetadata.provider,
+        authenticated: isAdminAuthenticated(req),
+        supabaseConnected: db.isSupabaseEnabled()
+      }));
+    }
+
+    if (pathname === '/api/admin/login' && req.method === 'POST') {
+      const payload = await getRequestBody(req);
+      const password = String(payload.password || payload.pin || '').trim();
+      if (!verifyAdminPassword(password)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          message: 'Contraseña de administrador incorrecta.'
+        }));
+      }
+      const token = createAdminToken();
+      const isHttps = (req.headers['x-forwarded-proto'] || '').includes('https');
+      const cookieFlags = `HttpOnly; SameSite=Lax; Path=/; Max-Age=43200${isHttps ? '; Secure' : ''}`;
+      res.setHeader('Set-Cookie', `${ADMIN_COOKIE_NAME}=${encodeURIComponent(token)}; ${cookieFlags}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        authenticated: true,
+        token
+      }));
+    }
+
+    if (pathname === '/api/admin/logout' && req.method === 'POST') {
+      res.setHeader('Set-Cookie', `${ADMIN_COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, authenticated: false }));
+    }
+
+    // ==========================================
+    // 0.1 CONFIGURACIÓN PÚBLICA (White-Label sin secretos)
+    // ==========================================
+    if (pathname === '/api/public-config' && req.method === 'GET') {
+      const settings = await db.getStoreSettings();
+      if (!isTestEnv && settings.bcvMode !== 'manual') {
+        try { await fetchLiveBcvRate(false); } catch (e) {}
+      }
+      const effectiveRate = await getEffectiveBcvRate(settings);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        data: {
+          ...db.getPublicStoreSettingsFrom(settings),
+          bcvRate: effectiveRate
+        }
+      }));
+    }
+
+    // ==========================================
+    // 0.2 CONFIGURACIÓN ADMIN (Empresa, Skylink, WhatsApp, Resend)
+    // ==========================================
+    if (pathname === '/api/admin/settings' && req.method === 'GET') {
+      if (!requireAdmin(req, res)) return;
+      const settings = await db.getStoreSettings(true);
+      const effectiveRate = await getEffectiveBcvRate(settings);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        data: {
+          ...db.getMaskedAdminSettingsFrom(settings),
+          bcvRate: effectiveRate
+        }
+      }));
+    }
+
+    if (pathname === '/api/admin/settings' && (req.method === 'PUT' || req.method === 'POST')) {
+      if (!requireAdmin(req, res)) return;
+      const payload = await getRequestBody(req);
+      const saved = await db.saveStoreSettings(payload);
+      if (saved.bcvMode === 'manual' && saved.manualBcvRate > 0) {
+        bcvRate = saved.manualBcvRate;
+      }
+      const effectiveRate = await getEffectiveBcvRate(saved);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        message: 'Configuración guardada correctamente.',
+        data: {
+          ...db.getMaskedAdminSettingsFrom(saved),
+          bcvRate: effectiveRate
+        }
+      }));
+    }
+
+    // ==========================================
+    // 0.3 DIAGNÓSTICOS EN VIVO (WhatsApp / Resend / Skylink)
+    // ==========================================
+    if (pathname === '/api/admin/test-whatsapp' && req.method === 'POST') {
+      if (!requireAdmin(req, res)) return;
+      const payload = await getRequestBody(req);
+      const settings = await db.getStoreSettings(true);
+      const phone = payload.phone || settings.storePhone;
+      const result = await sendTestWhatsApp(phone, settings);
+      res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: Boolean(result.success),
+        message: result.success
+          ? `Mensaje de prueba enviado por ${result.provider || settings.whatsappProvider}.`
+          : (result.error || result.reason || 'No se pudo enviar el WhatsApp de prueba.'),
+        data: result
+      }));
+    }
+
+    if (pathname === '/api/admin/test-email' && req.method === 'POST') {
+      if (!requireAdmin(req, res)) return;
+      const payload = await getRequestBody(req);
+      const settings = await db.getStoreSettings(true);
+      const result = await sendTestEmail(payload.email, settings);
+      res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: Boolean(result.success),
+        message: result.success
+          ? `Correo de prueba enviado a ${result.recipient} (ID: ${result.emailId}).`
+          : (result.error || 'No se pudo enviar el correo de prueba.'),
+        data: result
+      }));
+    }
+
+    if (pathname === '/api/admin/test-skylink' && req.method === 'POST') {
+      if (!requireAdmin(req, res)) return;
+      const settings = await db.getStoreSettings(true);
+      const override = buildSkylinkOverride(settings);
+      const testRes = await fetchSkylinkPay('/api/v1/merchant/transactions/token/test-connection-check', 'GET', null, override);
+      // 200 o 404 significa que la firma HMAC y credenciales fueron aceptadas por Skylink (401/500 = error)
+      const connected = testRes.ok || testRes.status === 404;
+      res.writeHead(connected ? 200 : 400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: connected,
+        message: connected
+          ? `Conexión y firma HMAC verificadas con Skylink (${override.baseUrl}).`
+          : (testRes.error || testRes.data?.message || `Skylink devolvió HTTP ${testRes.status}. Revisa Commerce Code y API Key.`),
+        status: testRes.status
+      }));
+    }
+
+    // ==========================================
+    // 0.4 CRM CLIENTES: CÉDULA EXPRESS (Onboarding 1 sola vez)
+    // ==========================================
+    if (pathname.startsWith('/api/customers/by-cedula/') && req.method === 'GET') {
+      const rawCedula = decodeURIComponent(pathname.split('/api/customers/by-cedula/')[1] || '');
+      const normalized = normalizeCedula(rawCedula);
+      if (!normalized) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          found: false,
+          message: 'Formato de cédula o RIF inválido (ej: V-12345678).'
+        }));
+      }
+      const customer = await db.findCustomerByCedula(normalized);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        found: Boolean(customer),
+        cedula: normalized,
+        customer: customer ? {
+          cedula: customer.cedula,
+          fullName: customer.fullName,
+          email: customer.email,
+          phone: customer.phone,
+          ordersCount: customer.ordersCount
+        } : null
+      }));
+    }
+
+    if (pathname === '/api/admin/customers' && req.method === 'GET') {
+      if (!requireAdmin(req, res)) return;
+      const customers = await db.listCustomers(300);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, data: customers }));
+    }
+
+    // ==========================================
+    // 1. TASA OFICIAL BCV (DolarAPI Venezuela)
+    // ==========================================
+    if (pathname === '/api/bcv-rate' && req.method === 'GET') {
+      const settings = await db.getStoreSettings();
+      if ((!isTestEnv || parsedUrl.searchParams.get('sync') === '1') && settings.bcvMode !== 'manual') {
+        try { await fetchLiveBcvRate(parsedUrl.searchParams.get('force') === '1'); } catch (e) {}
+      }
+      const effectiveRate = await getEffectiveBcvRate(settings);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        rate: effectiveRate,
+        bcvMode: settings.bcvMode,
+        provider: settings.bcvMode === 'manual' ? 'Tasa Manual Configurada' : bcvMetadata.provider,
         source: bcvMetadata.sourceUrl,
         lastSync: bcvMetadata.lastFetchedAt ? new Date(bcvMetadata.lastFetchedAt).toISOString() : null,
         fechaActualizacion: bcvMetadata.fechaActualizacion
@@ -301,82 +519,139 @@ async function handleApi(req, res) {
         return res.end(JSON.stringify({ success: false, message: 'La tasa debe ser un número mayor a cero.' }));
       }
       bcvRate = rate;
+      await db.saveStoreSettings({ manualBcvRate: rate, bcvMode: payload.bcvMode || 'manual' });
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: true, rate: bcvRate }));
     }
 
     // ==========================================
-    // 2. CONFIGURACIÓN DE LA TIENDA
+    // 2. CONFIGURACIÓN DE LA TIENDA (Compatibilidad segura, sin llaves)
     // ==========================================
     if (pathname === '/api/store-settings' && req.method === 'GET') {
+      const settings = await db.getStoreSettings();
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, data: storeSettings }));
+      return res.end(JSON.stringify({
+        success: true,
+        data: {
+          ...db.getPublicStoreSettingsFrom(settings),
+          skylinkCommerceCode: settings.skylinkCommerceCode,
+          skylinkBaseUrl: settings.skylinkBaseUrl,
+          webhookUrl: settings.webhookUrl,
+          webhookSecret: settings.webhookSecret
+        }
+      }));
     }
     if (pathname === '/api/store-settings' && req.method === 'POST') {
+      if (!isTestEnv && !requireAdmin(req, res)) return;
       const payload = await getRequestBody(req);
-      if (payload.storePhone) storeSettings.storePhone = payload.storePhone;
-      if (payload.storeName) storeSettings.storeName = payload.storeName;
-      if (payload.storeRif) storeSettings.storeRif = payload.storeRif;
-      if (payload.webhookUrl !== undefined) storeSettings.webhookUrl = payload.webhookUrl;
-      if (payload.webhookSecret) storeSettings.webhookSecret = payload.webhookSecret;
+      const saved = await db.saveStoreSettings({
+        storePhone: payload.storePhone,
+        storeName: payload.storeName,
+        storeRif: payload.storeRif,
+        storeAddress: payload.storeAddress,
+        storeCity: payload.storeCity,
+        invoiceFooter: payload.invoiceFooter,
+        webhookUrl: payload.webhookUrl,
+        webhookSecret: payload.webhookSecret
+      });
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, data: storeSettings }));
+      return res.end(JSON.stringify({ success: true, data: db.getPublicStoreSettingsFrom(saved) }));
     }
 
     // ==========================================
-    // 3. GESTIÓN DEL CATÁLOGO DE PRODUCTOS (20 - 25 Bs)
+    // 3. GESTIÓN DEL CATÁLOGO DE PRODUCTOS (Supabase + Escáner)
     // ==========================================
     if (pathname === '/api/products' && req.method === 'GET') {
-      const formatted = CATALOGO_PRODUCTOS.map(p => ({
-        ...p,
-        priceUsd: getProductPriceUsd(p.priceBs),
-        bcvRate
-      }));
+      const settings = await db.getStoreSettings();
+      const effectiveRate = await getEffectiveBcvRate(settings);
+      const rawProducts = await db.listProducts(parsedUrl.searchParams.get('all') === '1');
+      const formatted = rawProducts.map(p => formatProductForClient(p, effectiveRate, settings.pricingMode));
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, data: formatted, bcvRate }));
+      return res.end(JSON.stringify({
+        success: true,
+        data: formatted,
+        bcvRate: effectiveRate,
+        pricingMode: settings.pricingMode
+      }));
+    }
+
+    if (pathname === '/api/products/import' && req.method === 'POST') {
+      if (!requireAdmin(req, res)) return;
+      const payload = await getRequestBody(req);
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      if (items.length === 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'No se recibieron productos válidos para importar.' }));
+      }
+      const settings = await db.getStoreSettings();
+      const effectiveRate = await getEffectiveBcvRate(settings);
+      const imported = await db.bulkUpsertProducts(items, effectiveRate);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        count: imported.length,
+        data: imported.map(p => formatProductForClient(p, effectiveRate, settings.pricingMode))
+      }));
     }
 
     if (pathname === '/api/products' && req.method === 'POST') {
       const payload = await getRequestBody(req);
       const name = (payload.name || '').trim();
-      // Precio predeterminado aleatorio si no se especifica (ej: entre 18 y 33 Bs)
+      const settings = await db.getStoreSettings();
+      const effectiveRate = await getEffectiveBcvRate(settings);
+      // Precio predeterminado aleatorio si no se especifica ni Bs ni USD (ej: entre 18 y 33 Bs)
       const randomDefault = Number((Math.floor(Math.random() * 15 + 18) + (Math.random() < 0.5 ? 0 : 0.5)).toFixed(2));
-      const priceBs = Number(payload.priceBs || payload.price_bs || randomDefault);
+      const hasBs = payload.priceBs != null && Number(payload.priceBs) > 0;
+      const hasBsSnake = payload.price_bs != null && Number(payload.price_bs) > 0;
+      const hasUsd = payload.priceUsd != null && Number(payload.priceUsd) > 0;
+      const hasUsdSnake = payload.price_usd != null && Number(payload.price_usd) > 0;
+      const priceBs = hasBs ? Number(payload.priceBs) : (hasBsSnake ? Number(payload.price_bs) : (hasUsd || hasUsdSnake ? 0 : randomDefault));
+      const priceUsd = hasUsd ? Number(payload.priceUsd) : (hasUsdSnake ? Number(payload.price_usd) : 0);
+
       if (!name) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, message: 'El nombre del producto es obligatorio.' }));
       }
-      const code = String(payload.code || ('759' + Math.floor(1000 + Math.random() * 9000))).trim();
-      const existingIdx = CATALOGO_PRODUCTOS.findIndex(p => p.code === code);
-      if (existingIdx !== -1) {
-        CATALOGO_PRODUCTOS[existingIdx] = {
-          ...CATALOGO_PRODUCTOS[existingIdx],
-          name,
-          priceBs: Number(priceBs.toFixed(2)),
-          category: payload.category || CATALOGO_PRODUCTOS[existingIdx].category || 'Víveres',
-          icon: payload.icon || CATALOGO_PRODUCTOS[existingIdx].icon || '📦',
-          keywords: [name.toLowerCase()]
-        };
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: true, data: CATALOGO_PRODUCTOS[existingIdx], updated: true }));
-      }
-      const newProduct = {
-        id: Date.now(),
+
+      const { product, updated } = await db.createOrUpdateProduct({
         name,
-        code,
-        priceBs: Number(priceBs.toFixed(2)),
+        code: payload.code || payload.barcode,
+        priceBs,
+        priceUsd,
         category: payload.category || 'Víveres',
-        icon: payload.icon || '📦',
-        keywords: [name.toLowerCase()]
-      };
-      CATALOGO_PRODUCTOS.push(newProduct);
-      res.writeHead(201, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, data: newProduct }));
+        icon: payload.icon || '📦'
+      }, effectiveRate);
+
+      res.writeHead(updated ? 200 : 201, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        data: formatProductForClient(product, effectiveRate, settings.pricingMode),
+        updated
+      }));
+    }
+
+    if (pathname.startsWith('/api/products/') && req.method === 'PUT') {
+      if (!requireAdmin(req, res)) return;
+      const id = pathname.split('/api/products/')[1];
+      const payload = await getRequestBody(req);
+      const settings = await db.getStoreSettings();
+      const effectiveRate = await getEffectiveBcvRate(settings);
+      const updated = await db.updateProduct(id, payload, effectiveRate);
+      if (!updated) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Producto no encontrado.' }));
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        data: formatProductForClient(updated, effectiveRate, settings.pricingMode)
+      }));
     }
 
     if (pathname.startsWith('/api/products/') && req.method === 'DELETE') {
-      const id = parseInt(pathname.split('/api/products/')[1], 10);
-      CATALOGO_PRODUCTOS = CATALOGO_PRODUCTOS.filter(p => p.id !== id);
+      if (!requireAdmin(req, res)) return;
+      const id = pathname.split('/api/products/')[1];
+      await db.deleteProduct(id);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: true, message: 'Producto eliminado correctamente.' }));
     }
@@ -387,6 +662,8 @@ async function handleApi(req, res) {
     // ==========================================
     if ((pathname === '/api/generate-link' || pathname === '/api/v1/links/generate' || pathname === '/api/create-order-link') && req.method === 'POST') {
       const payload = await getRequestBody(req);
+      const settings = await db.getStoreSettings();
+      const effectiveRate = await getEffectiveBcvRate(settings);
 
       // Determinación del monto exacto en Bolívares
       let amountBs = 0;
@@ -397,18 +674,19 @@ async function handleApi(req, res) {
       } else if (payload.amount != null) {
         // Si no se especifica si es Bs o USD, revisamos currency
         if (payload.currency === 'USD' || payload.currency === 'usd') {
-          amountBs = Number((Number(payload.amount) * bcvRate).toFixed(2));
+          amountBs = Number((Number(payload.amount) * effectiveRate).toFixed(2));
         } else if (payload.currency === 'VES' || payload.currency === 'ves') {
           amountBs = Number(payload.amount);
         } else {
           // Asumir USD si es menor a 15, de lo contrario Bs
-          amountBs = Number(payload.amount) < 15 ? Number((Number(payload.amount) * bcvRate).toFixed(2)) : Number(payload.amount);
+          amountBs = Number(payload.amount) < 15 ? Number((Number(payload.amount) * effectiveRate).toFixed(2)) : Number(payload.amount);
         }
       } else if (Array.isArray(payload.items) && payload.items.length > 0) {
         // Calcular sumatoria de items del catálogo
+        const catalog = (await db.listProducts()).map(p => formatProductForClient(p, effectiveRate, settings.pricingMode));
         amountBs = payload.items.reduce((sum, it) => {
-          const prod = CATALOGO_PRODUCTOS.find(p => p.id === it.id);
-          const itemPriceBs = prod ? prod.priceBs : (it.priceBs || (it.price ? it.price * bcvRate : 25));
+          const prod = catalog.find(p => Number(p.id) === Number(it.id) || (it.code && p.code === it.code));
+          const itemPriceBs = prod ? prod.priceBs : (it.priceBs || (it.price ? it.price * effectiveRate : 25));
           return sum + (itemPriceBs * (it.qty || it.quantity || 1));
         }, 0);
       }
@@ -420,12 +698,13 @@ async function handleApi(req, res) {
       }
 
       const amountCentimos = toCentimos(amountBs);
-      const amountUsd = Number((amountBs / bcvRate).toFixed(2));
+      const amountUsd = Number((amountBs / effectiveRate).toFixed(2));
       const description = payload.description || payload.concept || 'Pago en línea con Skylink Pay';
       const clientName = payload.client_name || payload.clientName || 'Cliente';
       const clientPhone = payload.client_phone || payload.clientPhone || '';
       const orderId = 'LNK-' + crypto.randomUUID().slice(0, 8).toUpperCase();
       const sessionId = 'SES-' + Date.now();
+      const skylinkOverride = buildSkylinkOverride(settings);
 
       // Llamada oficial y real a Skylink Pay API (Valink Group)
       const skylinkRes = await fetchSkylinkPay('/api/v1/merchant/transactions', 'POST', {
@@ -434,15 +713,15 @@ async function handleApi(req, res) {
         amount: amountCentimos,
         currency: 'VES',
         installments: 1
-      });
+      }, skylinkOverride);
 
-      const { token, skylinkPayUrl } = paymentFromResponse(skylinkRes);
+      const { token, skylinkPayUrl } = paymentFromResponse(skylinkRes, skylinkOverride);
       const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(skylinkPayUrl)}`;
 
       // Plantilla para compartir directo en WhatsApp
       let phoneClean = clientPhone.replace(/\D/g, '');
       if (phoneClean.startsWith('0')) phoneClean = '58' + phoneClean.slice(1);
-      const waMsg = `¡Hola ${clientName}! 👋 Tu link de pago está listo:\n\n` +
+      const waMsg = `¡Hola ${clientName}! 👋 Tu link de pago de *${settings.storeName}* está listo:\n\n` +
         `📝 *Concepto:* ${description}\n` +
         `💵 *Monto:* Bs. ${amountBs.toFixed(2)} (≈ $${amountUsd.toFixed(2)} USD)\n\n` +
         `💳 *Paga aquí en Skylink Pay:* ${skylinkPayUrl}\n\n` +
@@ -453,15 +732,23 @@ async function handleApi(req, res) {
 
       const orderData = {
         orderId,
+        identifier: orderId,
         sessionId,
         token,
         amount: amountUsd,
+        amountBs,
         amountVes: amountBs,
         amountCentimos,
-        bcvRate,
+        bcvRate: effectiveRate,
         description,
         clientName,
         clientPhone,
+        storeName: settings.storeName,
+        storeRif: settings.storeRif,
+        storeAddress: settings.storeAddress,
+        storeCity: settings.storeCity,
+        storePhone: settings.storePhone,
+        invoiceFooter: settings.invoiceFooter,
         paymentUrl: skylinkPayUrl,
         skylinkUrl: skylinkPayUrl,
         qrCodeUrl,
@@ -473,9 +760,7 @@ async function handleApi(req, res) {
         createdAt: new Date().toISOString()
       };
 
-      orders.set(orderId, orderData);
-      orders.set(sessionId, orderData);
-      orders.set(token, orderData);
+      await indexPayment(orderData);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({
@@ -490,7 +775,7 @@ async function handleApi(req, res) {
         amountBs,
         amountCentimos,
         amountUsd,
-        bcvRate,
+        bcvRate: effectiveRate,
         description,
         data: orderData
       }));
@@ -502,7 +787,8 @@ async function handleApi(req, res) {
     // ==========================================
     if (pathname === '/api/webhooks/incoming' && req.method === 'POST') {
       const payload = await getRequestBody(req);
-      const authHeader = req.headers['x-webhook-secret'] || req.headers['authorization'] || '';
+      const settings = await db.getStoreSettings();
+      const effectiveRate = await getEffectiveBcvRate(settings);
 
       // Registrar log del webhook entrante
       const logEntry = {
@@ -517,10 +803,11 @@ async function handleApi(req, res) {
 
       // Si el webhook externo solicita crear un cobro automáticamente
       if (payload.action === 'create_payment_link' || payload.event === 'order.created') {
-        const amountBs = Number(payload.amount_bs || payload.amountBs || (payload.amount ? Number(payload.amount) * bcvRate : 25));
+        const amountBs = Number(payload.amount_bs || payload.amountBs || (payload.amount ? Number(payload.amount) * effectiveRate : 25));
         const amountCentimos = toCentimos(amountBs);
         const orderId = 'EXT-' + crypto.randomUUID().slice(0, 8).toUpperCase();
         const sessionId = 'SES-' + Date.now();
+        const skylinkOverride = buildSkylinkOverride(settings);
 
         const skylinkRes = await fetchSkylinkPay('/api/v1/merchant/transactions', 'POST', {
           buyOrder: orderId,
@@ -528,20 +815,28 @@ async function handleApi(req, res) {
           amount: amountCentimos,
           currency: 'VES',
           installments: 1
-        });
+        }, skylinkOverride);
 
-        const { token, skylinkPayUrl } = paymentFromResponse(skylinkRes);
+        const { token, skylinkPayUrl } = paymentFromResponse(skylinkRes, skylinkOverride);
         const orderData = {
           orderId,
+          identifier: orderId,
           sessionId,
           token,
-          amount: Number((amountBs / bcvRate).toFixed(2)),
+          amount: Number((amountBs / effectiveRate).toFixed(2)),
+          amountBs,
           amountVes: amountBs,
           amountCentimos,
-          bcvRate,
+          bcvRate: effectiveRate,
           description: payload.description || payload.concept || 'Cobro externo vía Webhook',
           clientName: payload.client_name || payload.customer_name || 'Cliente Externo',
           clientPhone: payload.client_phone || '',
+          storeName: settings.storeName,
+          storeRif: settings.storeRif,
+          storeAddress: settings.storeAddress,
+          storeCity: settings.storeCity,
+          storePhone: settings.storePhone,
+          invoiceFooter: settings.invoiceFooter,
           paymentUrl: skylinkPayUrl,
           skylinkUrl: skylinkPayUrl,
           status: 'pending',
@@ -549,8 +844,7 @@ async function handleApi(req, res) {
           createdAt: new Date().toISOString()
         };
 
-        orders.set(orderId, orderData);
-        orders.set(token, orderData);
+        await indexPayment(orderData);
 
         logEntry.createdOrder = orderId;
         logEntry.paymentUrl = skylinkPayUrl;
@@ -588,17 +882,19 @@ async function handleApi(req, res) {
       const reference = payload.reference || payload.authorizationCode;
 
       if (token) {
-        const order = orders.get(token);
+        const order = await db.getOrderByAnyKey(token);
+        const settings = await db.getStoreSettings();
         if (order) {
           if (status === 'AUTHORIZED' || status === 'paid' || status === 'SUCCESS') {
             order.status = 'paid';
+            order.paidAt = order.paidAt || new Date().toISOString();
             order.reference = reference || 'SK-' + Math.floor(10000000 + Math.random() * 90000000);
-            await dispatchOutboundWebhook('payment.success', order);
+            await dispatchOutboundWebhook('payment.success', order, settings);
             if (!order._dispatchingWhatsApp) {
               order._dispatchingWhatsApp = true;
               try {
                 console.log(`[SkyPay Webhook] Despachando comprobante WhatsApp para orden ${order.orderId}...`);
-                order.whatsappDispatch = await sendInvoiceWhatsApp(order);
+                order.whatsappDispatch = await sendInvoiceWhatsApp(order, { settings });
               } catch (waErr) {
                 console.error(`[SkyPay Webhook] Error en despacho WhatsApp orden ${order.orderId}:`, waErr.message);
                 order.whatsappDispatch = { success: false, error: waErr.message };
@@ -611,7 +907,7 @@ async function handleApi(req, res) {
               order._dispatchingEmail = true;
               try {
                 console.log(`[SkyPay Webhook] Despachando factura PDF por correo (Resend) para orden ${order.orderId}...`);
-                order.emailDispatch = await sendInvoiceEmail(order);
+                order.emailDispatch = await sendInvoiceEmail(order, { settings });
               } catch (mailErr) {
                 console.error(`[SkyPay Webhook] Error en despacho Email orden ${order.orderId}:`, mailErr.message);
                 order.emailDispatch = { success: false, error: mailErr.message };
@@ -619,9 +915,11 @@ async function handleApi(req, res) {
                 delete order._dispatchingEmail;
               }
             }
+            await db.saveOrder(order);
           } else if (status === 'FAILED' || status === 'REJECTED') {
             order.status = 'failed';
-            await dispatchOutboundWebhook('payment.failed', order);
+            await db.saveOrder(order);
+            await dispatchOutboundWebhook('payment.failed', order, settings);
           }
         }
       }
@@ -659,13 +957,16 @@ async function handleApi(req, res) {
     }
 
     // ==========================================
-    // 7. KIOSCO AUTOPAGO (Crear Transacción Real)
+    // 7. KIOSCO AUTOPAGO (Crear Transacción Real + Guardar Cliente CRM)
     // ==========================================
     if (pathname === '/api/create-payment' && req.method === 'POST') {
       const payload = await getRequestBody(req);
+      const settings = await db.getStoreSettings();
+      const effectiveRate = await getEffectiveBcvRate(settings);
+
       const invoiceName = String(payload.invoiceName || payload.clientName || '').trim();
       const rawPhone = String(payload.invoicePhone || payload.clientPhone || payload.phone || '').trim();
-      let invoiceId = String(payload.invoiceId || payload.clientId || '').trim();
+      const rawInvoiceId = String(payload.invoiceId || payload.clientId || payload.cedula || '').trim();
       const invoiceEmail = String(payload.invoiceEmail || payload.clientEmail || payload.email || '').trim();
 
       // Validación de Nombre obligatorio (mínimo 2 letras)
@@ -698,38 +999,37 @@ async function handleApi(req, res) {
       }
 
       // Validación de Cédula o RIF obligatoria
-      if (!invoiceId || !/^(?:[VEJG]-?)?\d{5,10}$/i.test(invoiceId)) {
+      const normalizedCedula = normalizeCedula(rawInvoiceId);
+      if (!normalizedCedula) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({
           success: false,
           message: 'La cédula o RIF es obligatoria (ej: V-12345678).'
         }));
       }
+      const invoiceId = normalizedCedula;
 
-      if (/^\d+$/.test(invoiceId)) {
-        invoiceId = 'V-' + invoiceId;
-      } else {
-        invoiceId = invoiceId.toUpperCase();
-      }
       let amountBs = 0;
 
       if (Array.isArray(payload.items) && payload.items.length > 0) {
+        const catalog = (await db.listProducts()).map(p => formatProductForClient(p, effectiveRate, settings.pricingMode));
         amountBs = payload.items.reduce((sum, it) => {
-          const prod = CATALOGO_PRODUCTOS.find(p => p.id === it.id);
-          const pPrice = prod ? prod.priceBs : (it.priceBs || (it.price ? it.price * bcvRate : 25));
+          const prod = catalog.find(p => Number(p.id) === Number(it.id) || (it.code && p.code === it.code));
+          const pPrice = prod ? prod.priceBs : (it.priceBs || (it.price ? it.price * effectiveRate : 25));
           return sum + (pPrice * (it.qty || it.quantity || 1));
         }, 0);
       } else if (payload.amountBs != null) {
         amountBs = Number(payload.amountBs);
       } else {
-        amountBs = Number(payload.amount || 1) * bcvRate;
+        amountBs = Number(payload.amount || 1) * effectiveRate;
       }
 
       amountBs = Number(amountBs.toFixed(2));
       const amountCentimos = toCentimos(amountBs);
-      const amountUsd = Number((amountBs / bcvRate).toFixed(2));
+      const amountUsd = Number((amountBs / effectiveRate).toFixed(2));
       const identifier = 'AUTO-' + crypto.randomUUID().slice(0, 8).toUpperCase();
       const sessionId = 'SES-' + Date.now();
+      const skylinkOverride = buildSkylinkOverride(settings);
 
       const skylinkRes = await fetchSkylinkPay('/api/v1/merchant/transactions', 'POST', {
         buyOrder: identifier,
@@ -737,9 +1037,23 @@ async function handleApi(req, res) {
         amount: amountCentimos,
         currency: 'VES',
         installments: 1
-      });
+      }, skylinkOverride);
 
-      const { token, skylinkPayUrl } = paymentFromResponse(skylinkRes);
+      const { token, skylinkPayUrl } = paymentFromResponse(skylinkRes, skylinkOverride);
+
+      // Guardar/actualizar perfil del cliente en Supabase para futuras compras con Cédula Express
+      let savedCustomer = null;
+      try {
+        savedCustomer = await db.upsertCustomer({
+          cedula: invoiceId,
+          fullName: invoiceName,
+          email: invoiceEmail,
+          phone: cleanPhone || rawPhone,
+          incrementOrder: true
+        });
+      } catch (custErr) {
+        console.warn('[SkyPay] No se pudo guardar perfil CRM del cliente:', custErr.message);
+      }
 
       const sessionData = {
         identifier,
@@ -748,12 +1062,14 @@ async function handleApi(req, res) {
         token,
         amount: amountUsd,
         amountBs,
+        amountVes: amountBs,
         amountCentimos,
-        bcvRate,
+        bcvRate: effectiveRate,
         description: payload.description || 'Compra Kiosco Skylink Pay',
         items: payload.items || [],
+        customerId: savedCustomer?.id || null,
         clientName: invoiceName,
-        clientId: invoiceId.toUpperCase(),
+        clientId: invoiceId,
         clientPhone: cleanPhone || '',
         invoicePhone: cleanPhone || rawPhone || '',
         clientEmail: invoiceEmail,
@@ -761,26 +1077,25 @@ async function handleApi(req, res) {
         invoice: {
           required: true,
           name: invoiceName,
-          idNumber: invoiceId.toUpperCase(),
+          idNumber: invoiceId,
           phone: cleanPhone || rawPhone || '',
           email: invoiceEmail
         },
+        storePhone: settings.storePhone,
+        storeName: settings.storeName,
+        storeRif: settings.storeRif,
+        storeAddress: settings.storeAddress,
+        storeCity: settings.storeCity,
+        invoiceFooter: settings.invoiceFooter,
+        paymentUrl: skylinkPayUrl,
         payment_url: skylinkPayUrl,
         skylink_url: skylinkPayUrl,
+        source: 'kiosk',
         status: 'pending',
         createdAt: new Date().toISOString()
       };
 
-      indexPayment(sessionData);
-      Object.assign(sessionData, {
-        amountVes: amountBs,
-        clientPhone: cleanPhone || '',
-        invoicePhone: cleanPhone || rawPhone || '',
-        storePhone: storeSettings.storePhone,
-        storeName: storeSettings.storeName,
-        paymentUrl: skylinkPayUrl,
-        source: 'kiosk'
-      });
+      await indexPayment(sessionData);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({
@@ -801,32 +1116,41 @@ async function handleApi(req, res) {
     // ==========================================
     if (pathname.startsWith('/api/order-status/') && req.method === 'GET') {
       const id = pathname.split('/api/order-status/')[1];
-      const order = orders.get(id);
+      const order = await db.getOrderByAnyKey(id);
 
       if (!order) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, message: 'Orden no encontrada' }));
       }
 
+      const settings = await db.getStoreSettings();
       const previousStatus = order.status;
-      try { await refreshPaymentStatus(order); } catch (e) {}
+      try { await refreshPaymentStatus(order, settings); } catch (e) {}
       const isPaid = order.status === 'paid';
-      const hasDispatched = order.whatsappDispatch && (order.whatsappDispatch.status === 'sent' || order.whatsappDispatch.provider === 'green-api');
+      const hasDispatched = order.whatsappDispatch && (
+        order.whatsappDispatch.status === 'sent' ||
+        order.whatsappDispatch.provider === 'green-api' ||
+        order.whatsappDispatch.provider === 'evolution-api'
+      );
+
+      let orderMutated = previousStatus !== order.status;
 
       if (previousStatus !== 'paid' && isPaid) {
-        await dispatchOutboundWebhook('payment.success', order);
+        await dispatchOutboundWebhook('payment.success', order, settings);
       }
 
-      // Despacho inmediato y automático por WhatsApp vía Green API
+      // Despacho inmediato y automático por WhatsApp vía Green API / Evolution API
       if (isPaid && !hasDispatched && !order._dispatchingWhatsApp) {
         order._dispatchingWhatsApp = true;
         const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
         try {
           console.log(`[SkyPay] Despachando automáticamente comprobante WhatsApp para orden ${order.orderId || id}...`);
-          order.whatsappDispatch = await sendInvoiceWhatsApp(order, { baseUrl: hostUrl });
+          order.whatsappDispatch = await sendInvoiceWhatsApp(order, { baseUrl: hostUrl, settings });
+          orderMutated = true;
         } catch (waErr) {
           console.error(`[SkyPay] Error en despacho WhatsApp orden ${order.orderId || id}:`, waErr.message);
           order.whatsappDispatch = { success: false, error: waErr.message };
+          orderMutated = true;
         } finally {
           delete order._dispatchingWhatsApp;
         }
@@ -839,13 +1163,19 @@ async function handleApi(req, res) {
         const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
         try {
           console.log(`[SkyPay] Despachando automáticamente factura PDF por correo (Resend) para orden ${order.orderId || id}...`);
-          order.emailDispatch = await sendInvoiceEmail(order, { baseUrl: hostUrl });
+          order.emailDispatch = await sendInvoiceEmail(order, { baseUrl: hostUrl, settings });
+          orderMutated = true;
         } catch (mailErr) {
           console.error(`[SkyPay] Error en despacho Email orden ${order.orderId || id}:`, mailErr.message);
           order.emailDispatch = { success: false, error: mailErr.message };
+          orderMutated = true;
         } finally {
           delete order._dispatchingEmail;
         }
+      }
+
+      if (orderMutated) {
+        await db.saveOrder(order);
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -853,12 +1183,12 @@ async function handleApi(req, res) {
     }
 
     // ==========================================
-    // 8.1 REENVIAR FACTURA POR WHATSAPP (GREEN API)
+    // 8.1 REENVIAR FACTURA POR WHATSAPP (GREEN API / EVOLUTION API)
     // ==========================================
     if (pathname === '/api/resend-whatsapp' && req.method === 'POST') {
       const payload = await getRequestBody(req);
       const orderId = payload.order_id || payload.orderId;
-      const order = orders.get(orderId);
+      const order = await db.getOrderByAnyKey(orderId);
 
       if (!order) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -879,15 +1209,17 @@ async function handleApi(req, res) {
         order.invoicePhone = order.clientPhone;
       }
 
+      const settings = await db.getStoreSettings();
       const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
       let result = null;
       try {
-        result = await sendInvoiceWhatsApp(order, { baseUrl: hostUrl });
+        result = await sendInvoiceWhatsApp(order, { baseUrl: hostUrl, settings });
         order.whatsappDispatch = result;
       } catch (err) {
         result = { success: false, error: err.message };
         order.whatsappDispatch = result;
       }
+      await db.saveOrder(order);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: true, data: result }));
@@ -899,7 +1231,7 @@ async function handleApi(req, res) {
     if (pathname === '/api/resend-email' && req.method === 'POST') {
       const payload = await getRequestBody(req);
       const orderId = payload.order_id || payload.orderId;
-      const order = orders.get(orderId);
+      const order = await db.getOrderByAnyKey(orderId);
 
       if (!order) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -920,15 +1252,17 @@ async function handleApi(req, res) {
         order.invoiceEmail = order.clientEmail;
       }
 
+      const settings = await db.getStoreSettings();
       const hostUrl = req.headers && req.headers.host ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}` : '';
       let result = null;
       try {
-        result = await sendInvoiceEmail(order, { baseUrl: hostUrl });
+        result = await sendInvoiceEmail(order, { baseUrl: hostUrl, settings });
         order.emailDispatch = result;
       } catch (err) {
         result = { success: false, error: err.message };
         order.emailDispatch = result;
       }
+      await db.saveOrder(order);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: true, data: result }));
@@ -938,9 +1272,9 @@ async function handleApi(req, res) {
     // 9. LISTAR ÓRDENES
     // ==========================================
     if (pathname === '/api/orders' && req.method === 'GET') {
-      const list = Array.from(new Set(orders.values())).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const list = await db.listOrders(60);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, data: list.slice(0, 40) }));
+      return res.end(JSON.stringify({ success: true, data: list }));
     }
 
     // ==========================================
@@ -948,15 +1282,17 @@ async function handleApi(req, res) {
     // ==========================================
     if (pathname === '/api/agent-chat' && req.method === 'POST') {
       const payload = await getRequestBody(req);
+      const settings = await db.getStoreSettings();
+      const effectiveRate = await getEffectiveBcvRate(settings);
       const userMsg = (payload.message || '').trim();
       const clientName = payload.client_name || payload.clientName || 'Cliente';
       const orderId = payload.order_id || payload.orderId || null;
 
-      const parsedItems = parseOrderFromMessage(userMsg);
+      const parsedItems = await parseOrderFromMessage(userMsg);
 
       if (parsedItems.length === 0) {
         const isAskingForLink = /link|enlace|pago|pagar|cuenta|transferir/i.test(userMsg);
-        const existingOrder = orderId ? orders.get(orderId) : null;
+        const existingOrder = orderId ? await db.getOrderByAnyKey(orderId) : null;
         if (isAskingForLink && existingOrder && existingOrder.status === 'pending') {
           const payUrl = existingOrder.skylinkUrl || existingOrder.paymentUrl;
           const replyText = `💳 *Aquí tienes tu link oficial de pago en Skylink Pay:*\n👉 ${payUrl}\n\n💵 *Monto:* Bs. ${existingOrder.amountVes.toFixed(2)} (≈ $${existingOrder.amount.toFixed(2)} USD)\n\n_(Acepta Pago Móvil C2P y Débito Inmediato)_. Al completar tu pago, coordinaremos el despacho de inmediato. 🚀`;
@@ -970,8 +1306,9 @@ async function handleApi(req, res) {
           }));
         }
 
-        let catalogoList = CATALOGO_PRODUCTOS.map(p => `• ${p.icon} *${p.name}* — Bs. ${p.priceBs.toFixed(2)} ($${getProductPriceUsd(p.priceBs)})`).join('\n');
-        const replyText = `¡Hola ${clientName}! 👋 Bienvenido a *${storeSettings.storeName}*.\n\nAquí tienes nuestro catálogo de productos a tasa BCV (Bs. ${bcvRate.toFixed(2)}/$):\n\n${catalogoList}\n\n💬 _Dime qué deseas pedir (ej: "Quiero 2 harina pan y un arroz") y te generaré tu enlace de pago seguro en Skylink Pay de inmediato._`;
+        const catalog = (await db.listProducts()).map(p => formatProductForClient(p, effectiveRate, settings.pricingMode));
+        let catalogoList = catalog.map(p => `• ${p.icon} *${p.name}* — Bs. ${p.priceBs.toFixed(2)} ($${p.priceUsd.toFixed(2)})`).join('\n');
+        const replyText = `¡Hola ${clientName}! 👋 Bienvenido a *${settings.storeName}*.\n\nAquí tienes nuestro catálogo de productos a tasa BCV (Bs. ${effectiveRate.toFixed(2)}/$):\n\n${catalogoList}\n\n💬 _Dime qué deseas pedir (ej: "Quiero 2 harina pan y un arroz") y te generaré tu enlace de pago seguro en Skylink Pay de inmediato._`;
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: true, reply: replyText, state: 'browsing' }));
@@ -988,9 +1325,10 @@ async function handleApi(req, res) {
 
       totalBs = Number(totalBs.toFixed(2));
       const totalCentimos = toCentimos(totalBs);
-      const totalUsd = Number((totalBs / bcvRate).toFixed(2));
+      const totalUsd = Number((totalBs / effectiveRate).toFixed(2));
       const newOrderId = 'ORD-' + crypto.randomUUID().slice(0, 8).toUpperCase();
       const sessionId = 'SES-' + Date.now();
+      const skylinkOverride = buildSkylinkOverride(settings);
 
       const skylinkRes = await fetchSkylinkPay('/api/v1/merchant/transactions', 'POST', {
         buyOrder: newOrderId,
@@ -998,35 +1336,39 @@ async function handleApi(req, res) {
         amount: totalCentimos,
         currency: 'VES',
         installments: 1
-      });
+      }, skylinkOverride);
 
-      const { token, skylinkPayUrl } = paymentFromResponse(skylinkRes);
+      const { token, skylinkPayUrl } = paymentFromResponse(skylinkRes, skylinkOverride);
 
       const orderData = {
         orderId: newOrderId,
+        identifier: newOrderId,
         sessionId,
         token,
         amount: totalUsd,
+        amountBs: totalBs,
         amountVes: totalBs,
         amountCentimos: totalCentimos,
-        bcvRate,
+        bcvRate: effectiveRate,
         paymentUrl: skylinkPayUrl,
         skylinkUrl: skylinkPayUrl,
         description: `Pedido WhatsApp (${parsedItems.map(i => `${i.qty}x ${i.name}`).join(', ')})`,
         items: parsedItems,
         clientName,
         clientPhone: payload.client_phone || '',
-        storePhone: storeSettings.storePhone,
-        storeName: storeSettings.storeName,
+        storePhone: settings.storePhone,
+        storeName: settings.storeName,
+        storeRif: settings.storeRif,
+        storeAddress: settings.storeAddress,
+        storeCity: settings.storeCity,
+        invoiceFooter: settings.invoiceFooter,
         status: 'pending',
         shippingData: null,
         source: 'whatsapp_agent',
         createdAt: new Date().toISOString()
       };
 
-      orders.set(newOrderId, orderData);
-      orders.set(sessionId, orderData);
-      orders.set(token, orderData);
+      await indexPayment(orderData);
 
       const replyText = `¡Excelente elección! 🎉 He preparado tu orden de compra:\n\n${itemsBreakdown.join('\n')}\n\n💵 *Total en Bolívares:* Bs. ${totalBs.toFixed(2)}\n💵 *Total USD (Ref):* $${totalUsd.toFixed(2)}\n\n💳 *Aquí tienes tu link oficial de pago en Skylink Pay:*\n👉 ${skylinkPayUrl}\n\n_(Acepta Pago Móvil C2P y Débito Inmediato)_. Al completar tu pago, coordinaremos el despacho por aquí de inmediato. 🚀`;
 
@@ -1046,17 +1388,20 @@ async function handleApi(req, res) {
     if ((pathname === '/api/retry-order' || pathname === '/api/retry-payment') && req.method === 'POST') {
       const payload = await getRequestBody(req);
       const id = payload.order_id || payload.orderId;
-      const prevOrder = orders.get(id);
+      const prevOrder = await db.getOrderByAnyKey(id);
 
       if (!prevOrder) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, message: 'Orden anterior no encontrada' }));
       }
 
+      const settings = await db.getStoreSettings();
+      const effectiveRate = await getEffectiveBcvRate(settings);
       const newOrderId = 'ORD-' + crypto.randomUUID().slice(0, 8).toUpperCase();
-      const amountVes = Number((prevOrder.amount * bcvRate).toFixed(2));
+      const amountVes = Number((prevOrder.amount * effectiveRate).toFixed(2));
       const amountCentimos = toCentimos(amountVes);
       const sessionId = 'SES-' + Date.now();
+      const skylinkOverride = buildSkylinkOverride(settings);
 
       const skylinkRes = await fetchSkylinkPay('/api/v1/merchant/transactions', 'POST', {
         buyOrder: newOrderId,
@@ -1064,35 +1409,38 @@ async function handleApi(req, res) {
         amount: amountCentimos,
         currency: 'VES',
         installments: 1
-      });
+      }, skylinkOverride);
 
-      const { token, skylinkPayUrl } = paymentFromResponse(skylinkRes);
+      const { token, skylinkPayUrl } = paymentFromResponse(skylinkRes, skylinkOverride);
 
       const newOrderData = {
         orderId: newOrderId,
+        identifier: newOrderId,
         sessionId,
         token,
         amount: prevOrder.amount,
+        amountBs: amountVes,
         amountVes,
         amountCentimos,
-        bcvRate,
+        bcvRate: effectiveRate,
         paymentUrl: skylinkPayUrl,
         payment_url: skylinkPayUrl,
         skylinkUrl: skylinkPayUrl,
         description: prevOrder.description,
         items: prevOrder.items,
         clientName: prevOrder.clientName,
+        clientId: prevOrder.clientId,
+        clientEmail: prevOrder.clientEmail,
         clientPhone: prevOrder.clientPhone,
-        storePhone: prevOrder.storePhone || storeSettings.storePhone,
-        storeName: prevOrder.storeName || storeSettings.storeName,
+        storePhone: prevOrder.storePhone || settings.storePhone,
+        storeName: prevOrder.storeName || settings.storeName,
+        storeRif: prevOrder.storeRif || settings.storeRif,
         status: 'pending',
         shippingData: null,
         createdAt: new Date().toISOString()
       };
 
-      orders.set(newOrderId, newOrderData);
-      orders.set(sessionId, newOrderData);
-      orders.set(token, newOrderData);
+      await indexPayment(newOrderData);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: true, data: newOrderData }));
@@ -1101,7 +1449,7 @@ async function handleApi(req, res) {
     if (pathname === '/api/save-shipping' && req.method === 'POST') {
       const payload = await getRequestBody(req);
       const orderId = payload.order_id || payload.orderId;
-      const order = orders.get(orderId);
+      const order = await db.getOrderByAnyKey(orderId);
 
       const guideNumber = payload.guide_number || payload.guideNumber || ('INT-' + Math.floor(100000 + Math.random() * 900000));
       const shippingInfo = {
@@ -1119,6 +1467,7 @@ async function handleApi(req, res) {
 
       if (order) {
         order.shippingData = shippingInfo;
+        await db.saveOrder(order);
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1131,7 +1480,7 @@ async function handleApi(req, res) {
     if (pathname === '/api/session-info' && req.method === 'GET') {
       const ref = parsedUrl.searchParams.get('ref');
       const sessionId = parsedUrl.searchParams.get('session_id') || parsedUrl.searchParams.get('sessionId');
-      const stored = sessions.get(ref) || sessions.get(sessionId);
+      const stored = (ref ? await db.getOrderByAnyKey(ref) : null) || (sessionId ? await db.getOrderByAnyKey(sessionId) : null);
 
       if (!stored) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
