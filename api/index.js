@@ -322,12 +322,33 @@ async function handleApi(req, res) {
 
     if (pathname === '/api/admin/login' && req.method === 'POST') {
       const payload = await getRequestBody(req);
+      const email = String(payload.email || '').trim();
       const password = String(payload.password || payload.pin || '').trim();
-      if (!verifyAdminPassword(password)) {
+      let authorized = false;
+      let adminUser = null;
+      let failMessage = 'Correo o contraseña de administrador incorrectos.';
+
+      // 1. Si el usuario ingresó correo y Supabase está conectado, autenticar con Supabase Auth
+      if (email && db.isSupabaseEnabled()) {
+        const supaAuth = await db.verifySupabaseAuthAdmin(email, password);
+        if (supaAuth.ok) {
+          authorized = true;
+          adminUser = supaAuth.user;
+        } else {
+          failMessage = supaAuth.reason || failMessage;
+        }
+      }
+
+      // 2. Respaldo con ADMIN_PASSWORD (si no ingresó correo o para entornos sin Supabase)
+      if (!authorized && !email && verifyAdminPassword(password)) {
+        authorized = true;
+      }
+
+      if (!authorized) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({
           success: false,
-          message: 'Contraseña de administrador incorrecta.'
+          message: failMessage
         }));
       }
       const token = createAdminToken();
@@ -338,6 +359,7 @@ async function handleApi(req, res) {
       return res.end(JSON.stringify({
         success: true,
         authenticated: true,
+        user: adminUser,
         token
       }));
     }

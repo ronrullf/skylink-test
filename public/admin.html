@@ -230,9 +230,13 @@
       <p>Ingresa tu contraseña de administrador para gestionar productos, clientes, factura, Skylink Pay, WhatsApp y Resend.</p>
       <form id="adminLoginForm">
         <div class="form-group">
-          <label class="form-label" for="adminPasswordInput">Contraseña de Administrador</label>
-          <input type="password" id="adminPasswordInput" class="form-input" placeholder="••••••••" autocomplete="current-password" required autofocus>
-          <span class="form-hint">Configurada en la variable <code>ADMIN_PASSWORD</code> de Vercel (por defecto en local: <code>admin1234</code>).</span>
+          <label class="form-label" for="adminEmailInput">Correo de Administrador (Supabase Auth)</label>
+          <input type="email" id="adminEmailInput" class="form-input" placeholder="Ej: admin@tuempresa.com" autocomplete="email" autofocus>
+          <span class="form-hint">Usa el usuario creado en Supabase → Authentication (o déjalo vacío para entrar con clave maestra <code>ADMIN_PASSWORD</code>).</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="adminPasswordInput">Contraseña</label>
+          <input type="password" id="adminPasswordInput" class="form-input" placeholder="••••••••" autocomplete="current-password" required>
         </div>
         <button type="submit" class="btn btn-primary btn-full" id="btnAdminLogin">Iniciar Sesión →</button>
         <div id="loginErrorMsg" style="color:#dc2626; font-size:12px; font-weight:700; margin-top:10px; display:none;"></div>
@@ -871,6 +875,7 @@
 
     document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const email = (document.getElementById('adminEmailInput')?.value || '').trim();
       const password = document.getElementById('adminPasswordInput').value;
       const errEl = document.getElementById('loginErrorMsg');
       const btn = document.getElementById('btnAdminLogin');
@@ -882,7 +887,7 @@
         const res = await fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password })
+          body: JSON.stringify({ email, password })
         });
         const json = await res.json();
         if (!res.ok || !json.success) {
