@@ -57,13 +57,15 @@
     .qr img { width:min(220px,70vw); aspect-ratio:1; border:1px solid var(--line); border-radius:12px; padding:8px; }
     [hidden] { display:none !important; }
     @media (max-width:520px) {
-      .shell { width:min(100% - 20px,680px); padding-top:16px; }
+      .shell { width:min(100% - 20px,680px); padding: max(16px, env(safe-area-inset-top)) 0 max(36px, env(safe-area-inset-bottom)); }
       .brand { margin-bottom:16px; }
       .steps { gap:3px; }
       .step { font-size:9px; padding:8px 2px; }
       .card { border-radius:16px; padding:22px 18px; }
       .summary { align-items:flex-start; flex-direction:column; gap:5px; }
       .actions-row { grid-template-columns:1fr; }
+      input, select { font-size: 16px; min-height: 48px; }
+      .primary, .secondary { min-height: 50px; }
     }
     @media (max-height: 850px) {
       .shell { padding: 10px 0 16px; }

@@ -2,7 +2,10 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0f172a">
   <title>Panel Administrativo · SkyPay Comercial</title>
   <link rel="stylesheet" href="/pay-ui.css">
   <!-- Motor local de escaneo QR/Barras (sin CDN externo) -->
@@ -211,10 +214,115 @@
       background: #fff; font-size: 13px;
     }
 
+    /* Mejoras táctiles globales para iOS y Android */
+    button, a, input, select, textarea, .provider-card {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
     @media (max-width: 860px) {
       .grid-2, .grid-even, .form-row, .provider-grid { grid-template-columns: 1fr; }
-      .topbar { padding: 12px 14px; }
-      .admin-shell { padding: 0 12px; }
+      .topbar {
+        padding: max(10px, env(safe-area-inset-top)) 14px 10px;
+        gap: 8px;
+      }
+      .topbar-brand { font-size: 15px; }
+      .topbar-right { width: 100%; justify-content: space-between; gap: 6px; }
+      .topbar-link { padding: 6px 9px; font-size: 12px; }
+      .pill-status { font-size: 10px; padding: 4px 8px; }
+      .admin-shell {
+        margin: 12px auto 0;
+        padding: 0 12px max(34px, env(safe-area-inset-bottom));
+      }
+      /* Barra de pestañas deslizable horizontalmente con el pulgar (iPhone y Android) */
+      .admin-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity;
+        scrollbar-width: none;
+        gap: 6px;
+        padding: 6px;
+        margin-bottom: 14px;
+        border-radius: 12px;
+      }
+      .admin-tabs::-webkit-scrollbar { display: none; }
+      .tab-btn {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        scroll-snap-align: start;
+        min-height: 42px;
+        padding: 8px 13px;
+        font-size: 12.5px;
+      }
+      .card { padding: 16px 14px; border-radius: 14px; margin-bottom: 14px; }
+      .card-head { padding-bottom: 10px; margin-bottom: 12px; }
+      .card-head h2 { font-size: 15.5px; }
+      /* Evitar auto-zoom en iPhone Safari (inputs >= 16px) y objetivos táctiles >= 44px */
+      .form-input, .form-select, .form-textarea {
+        font-size: 16px;
+        min-height: 46px;
+        padding: 10px 12px;
+      }
+      .btn { min-height: 44px; padding: 10px 14px; font-size: 13.5px; }
+      .btn-sm { min-height: 38px; padding: 7px 11px; font-size: 12.5px; }
+      .scanner-stage { aspect-ratio: 4 / 3; max-height: 280px; }
+      .test-row { flex-direction: column; align-items: stretch; }
+      .test-row .btn { width: 100%; }
+      .toast {
+        left: 12px; right: 12px; bottom: max(14px, env(safe-area-inset-bottom));
+        max-width: none; text-align: center;
+      }
+      .login-card { padding: 26px 20px; border-radius: 18px; }
+    }
+
+    /* Conversión de tablas a tarjetas táctiles limpias en teléfonos (<= 680px) */
+    @media (max-width: 680px) {
+      .data-table thead { display: none; }
+      .data-table, .data-table tbody, .data-table tr, .data-table td {
+        display: block; width: 100%;
+      }
+      .data-table tr {
+        background: #f8fafc;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+      .data-table td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 5px 0;
+        border-bottom: 1px dashed #e2e8f0;
+        text-align: right !important;
+        white-space: normal !important;
+      }
+      .data-table td:last-child {
+        border-bottom: none;
+        padding-top: 9px;
+        justify-content: flex-end;
+      }
+      .data-table td::before {
+        content: attr(data-label);
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        text-align: left;
+        flex-shrink: 0;
+      }
+      .data-table td.mobile-actions-cell {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+      .data-table td.mobile-actions-cell::before { display: none; }
+      .data-table td.mobile-empty-cell {
+        display: block; text-align: center !important; border: none; padding: 18px 8px;
+      }
+      .data-table td.mobile-empty-cell::before { display: none; }
     }
   </style>
 </head>
@@ -1348,24 +1456,28 @@
       );
 
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding:24px;">No hay productos que coincidan.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="mobile-empty-cell" style="text-align:center; color:#94a3b8; padding:24px;">No hay productos que coincidan.</td></tr>';
         return;
       }
 
       tbody.innerHTML = filtered.map(p => `
         <tr>
-          <td>
-            <strong>${p.icon || '📦'} ${escapeHtml(p.name)}</strong>
-            <div style="font-size:11px; color:#64748b;">${escapeHtml(p.category || 'General')}</div>
+          <td data-label="Producto">
+            <div>
+              <strong>${p.icon || '📦'} ${escapeHtml(p.name)}</strong>
+              <div style="font-size:11px; color:#64748b;">${escapeHtml(p.category || 'General')}</div>
+            </div>
           </td>
-          <td><span class="code-chip">${escapeHtml(p.code || '')}</span></td>
-          <td>
-            <strong>Bs. ${Number(p.priceBs || 0).toFixed(2)}</strong>
-            <div style="font-size:11px; color:#64748b;">$${Number(p.priceUsd || 0).toFixed(2)} USD</div>
+          <td data-label="Código"><span class="code-chip">${escapeHtml(p.code || '')}</span></td>
+          <td data-label="Precio">
+            <div>
+              <strong>Bs. ${Number(p.priceBs || 0).toFixed(2)}</strong>
+              <div style="font-size:11px; color:#64748b;">$${Number(p.priceUsd || 0).toFixed(2)} USD</div>
+            </div>
           </td>
-          <td style="text-align:right; white-space:nowrap;">
-            <button type="button" class="btn btn-outline btn-sm" onclick='cargarProductoParaEditar(${JSON.stringify(p).replace(/'/g, "&#39;")})' title="Editar nombre o precio">✏️</button>
-            <button type="button" class="btn btn-outline btn-sm" onclick="iniciarReescaneoProducto(${p.id})" title="Re-escanear código de barras">📷</button>
+          <td class="mobile-actions-cell" style="text-align:right; white-space:nowrap;">
+            <button type="button" class="btn btn-outline btn-sm" onclick='cargarProductoParaEditar(${JSON.stringify(p).replace(/'/g, "&#39;")})' title="Editar nombre o precio">✏️ Editar</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="iniciarReescaneoProducto(${p.id})" title="Re-escanear código de barras">📷 Código</button>
             <button type="button" class="btn btn-danger btn-sm" onclick="eliminarProducto(${p.id}, '${escapeHtml(p.name).replace(/'/g, '')}')" title="Eliminar">🗑️</button>
           </td>
         </tr>
@@ -1429,17 +1541,17 @@
         adminCustomers = json.data || [];
         document.getElementById('customersCount').textContent = adminCustomers.length;
         if (adminCustomers.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:22px;">Aún no hay clientes registrados. Se guardarán automáticamente en su primera compra.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" class="mobile-empty-cell" style="text-align:center; color:#94a3b8; padding:22px;">Aún no hay clientes registrados. Se guardarán automáticamente en su primera compra.</td></tr>';
           return;
         }
         tbody.innerHTML = adminCustomers.map(c => `
           <tr>
-            <td><strong>${escapeHtml(c.cedula)}</strong></td>
-            <td>${escapeHtml(c.fullName)}</td>
-            <td>${escapeHtml(c.email)}</td>
-            <td>+${escapeHtml(c.phone)}</td>
-            <td><strong>${c.ordersCount || 0}</strong></td>
-            <td style="font-size:12px; color:#64748b;">${c.lastOrderAt ? new Date(c.lastOrderAt).toLocaleString('es-VE') : '—'}</td>
+            <td data-label="Cédula"><strong>${escapeHtml(c.cedula)}</strong></td>
+            <td data-label="Nombre">${escapeHtml(c.fullName)}</td>
+            <td data-label="Correo">${escapeHtml(c.email)}</td>
+            <td data-label="WhatsApp">+${escapeHtml(c.phone)}</td>
+            <td data-label="Compras"><strong>${c.ordersCount || 0}</strong></td>
+            <td data-label="Última compra" style="font-size:12px; color:#64748b;">${c.lastOrderAt ? new Date(c.lastOrderAt).toLocaleString('es-VE') : '—'}</td>
           </tr>
         `).join('');
       } catch {}
@@ -1460,20 +1572,22 @@
         const json = await res.json();
         const list = json.data || [];
         if (list.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:22px;">Sin transacciones registradas aún.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" class="mobile-empty-cell" style="text-align:center; color:#94a3b8; padding:22px;">Sin transacciones registradas aún.</td></tr>';
           return;
         }
         tbody.innerHTML = list.map(o => `
           <tr>
-            <td><strong>#${escapeHtml(o.orderId || o.identifier)}</strong></td>
-            <td style="font-size:12px; color:#64748b;">${new Date(o.createdAt).toLocaleString('es-VE')}</td>
-            <td>
-              <div><strong>${escapeHtml(o.clientName || 'Cliente')}</strong></div>
-              <div style="font-size:11px; color:#64748b;">${escapeHtml(o.clientId || '')} ${o.clientEmail ? '· ' + escapeHtml(o.clientEmail) : ''}</div>
+            <td data-label="Orden"><strong>#${escapeHtml(o.orderId || o.identifier)}</strong></td>
+            <td data-label="Fecha" style="font-size:12px; color:#64748b;">${new Date(o.createdAt).toLocaleString('es-VE')}</td>
+            <td data-label="Cliente">
+              <div>
+                <div><strong>${escapeHtml(o.clientName || 'Cliente')}</strong></div>
+                <div style="font-size:11px; color:#64748b;">${escapeHtml(o.clientId || '')} ${o.clientEmail ? '· ' + escapeHtml(o.clientEmail) : ''}</div>
+              </div>
             </td>
-            <td><strong>Bs. ${Number(o.amountBs ?? o.amountVes ?? 0).toFixed(2)}</strong></td>
-            <td><span class="status-pill ${o.status}">${o.status === 'paid' ? 'PAGADO' : o.status === 'failed' ? 'FALLIDO' : 'PENDIENTE'}</span></td>
-            <td style="white-space:nowrap;">
+            <td data-label="Monto"><strong>Bs. ${Number(o.amountBs ?? o.amountVes ?? 0).toFixed(2)}</strong></td>
+            <td data-label="Estado"><span class="status-pill ${o.status}">${o.status === 'paid' ? 'PAGADO' : o.status === 'failed' ? 'FALLIDO' : 'PENDIENTE'}</span></td>
+            <td data-label="Acción" style="white-space:nowrap;">
               ${o.status === 'paid' ? `<a href="/factura?order_id=${encodeURIComponent(o.orderId || o.identifier)}" target="_blank" class="btn btn-outline btn-sm">🧾 Factura</a>` : `<a href="${escapeHtml(o.paymentUrl || '#')}" target="_blank" class="btn btn-outline btn-sm">🔗 Link</a>`}
             </td>
           </tr>
