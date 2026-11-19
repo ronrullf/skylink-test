@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Kiosco Autopago · SkyPay (Skylink Pay)</title>
+  <title>Kiosco Autopago · Naguaralabs (Skylink Pay)</title>
   <!-- Precarga local de WebAssembly de ZXing para escáner ultra-rápido sin CDNs externos -->
   <link rel="preload" href="/zxing_reader.wasm" as="fetch" type="application/wasm" crossorigin>
   <script src="/barcode-detector.iife.js"></script>
@@ -11,35 +11,45 @@
   <script src="/zxing.min.js"></script>
   <link rel="stylesheet" href="/pay-ui.css">
   <style>
-    /* Estilos mejorados para Kiosco Autopago */
+    /* Estilos oficiales Naguaralabs para Kiosco Autopago */
     .kiosk-header {
-      background: #0f172a;
-      color: white;
-      padding: 16px 24px;
+      background: #ffffff;
+      color: #050505;
+      padding: 12px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 2px solid #1e293b;
+      border-bottom: 3px solid #050505;
+      box-shadow: 0 4px 0 rgba(5, 5, 5, 0.05);
     }
     .kiosk-brand {
       display: flex;
       align-items: center;
       gap: 12px;
-      font-size: 20px;
+      font-family: var(--font-display, 'Bebas Neue', sans-serif);
+      font-size: 26px;
+      letter-spacing: 0.5px;
       font-weight: 800;
-      color: #f8fafc;
+      color: #050505;
       text-decoration: none;
     }
     .kiosk-logo-badge {
-      background: linear-gradient(135deg, #10b981, #0284c7);
+      background: var(--naguara-orange, #FF5A0D);
       color: white;
-      width: 38px;
-      height: 38px;
+      width: 44px;
+      height: 44px;
       display: grid;
       place-items: center;
-      border-radius: 10px;
-      font-size: 22px;
-      font-weight: 900;
+      border-radius: 50%;
+      border: 2.5px solid #050505;
+      box-shadow: 2px 2px 0 #050505;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .kiosk-logo-badge img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
     .kiosk-meta {
       display: flex;
@@ -47,28 +57,30 @@
       gap: 12px;
     }
     .kiosk-badge {
-      background: #1e293b;
-      border: 1px solid #334155;
-      color: #94a3b8;
-      padding: 6px 12px;
+      background: #ffffff;
+      border: 2px solid #050505;
+      box-shadow: 2px 2px 0 #050505;
+      color: #050505;
+      padding: 6px 14px;
       border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
+      font-size: 13px;
+      font-weight: 700;
       display: inline-flex;
       align-items: center;
       gap: 6px;
     }
     .kiosk-badge.rate {
-      color: #38bdf8;
-      border-color: #0284c7;
+      color: #050505;
+      background: #ffffff;
+      font-weight: 800;
     }
     .kiosk-badge.live-dot::before {
       content: '';
       width: 8px;
       height: 8px;
-      background: #10b981;
+      background: var(--naguara-green, #248A38);
       border-radius: 50%;
-      box-shadow: 0 0 8px #10b981;
+      box-shadow: 0 0 6px var(--naguara-green, #248A38);
     }
     .category-pills {
       display: flex;
@@ -79,27 +91,29 @@
     }
     .category-pill {
       background: #fff;
-      border: 1px solid var(--line);
-      color: var(--muted);
+      border: 2px solid #050505;
+      box-shadow: 2px 2px 0 #050505;
+      color: #050505;
       padding: 8px 16px;
       border-radius: 20px;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
       white-space: nowrap;
       transition: all 0.15s ease;
     }
     .category-pill:hover, .category-pill.active {
-      background: #10b981;
+      background: var(--naguara-orange, #FF5A0D);
       color: white;
-      border-color: #10b981;
+      border-color: #050505;
     }
     .product-badge-cat {
       font-size: 10px;
       text-transform: uppercase;
-      font-weight: 700;
-      color: #0284c7;
-      background: #e0f2fe;
+      font-weight: 800;
+      color: #050505;
+      background: #fed7aa;
+      border: 1px solid #050505;
       padding: 2px 6px;
       border-radius: 4px;
       display: inline-block;
@@ -109,9 +123,14 @@
       position: relative;
       cursor: pointer;
       user-select: none;
+      background: #fff;
+      border: var(--border-comic, 3px solid #050505);
+      border-radius: 14px;
+      box-shadow: var(--shadow-comic, 4px 4px 0px #050505);
     }
     .product-card:active {
-      transform: scale(0.98);
+      transform: translate(2px, 2px);
+      box-shadow: 1px 1px 0px #050505;
     }
     .product-add-overlay {
       position: absolute;
@@ -119,27 +138,28 @@
       right: 12px;
       width: 32px;
       height: 32px;
-      background: #f1f5f9;
+      background: #fed7aa;
+      border: 2px solid #050505;
       border-radius: 50%;
       display: grid;
       place-items: center;
       font-size: 18px;
-      font-weight: 700;
-      color: #0f172a;
+      font-weight: 800;
+      color: #050505;
       transition: background 0.15s;
     }
     .product-card:hover .product-add-overlay {
-      background: #10b981;
+      background: var(--naguara-orange, #FF5A0D);
       color: white;
     }
     .price-25-badge {
-      background: #f0fdf4;
-      color: #15803d;
-      font-size: 11px;
-      font-weight: 700;
+      background: var(--naguara-cream, #FFFAF1);
+      color: #050505;
+      font-size: 12px;
+      font-weight: 800;
       padding: 3px 8px;
       border-radius: 6px;
-      border: 1px solid #bbf7d0;
+      border: 1.5px solid #050505;
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -152,48 +172,49 @@
       gap: 8px;
     }
     .btn-torch {
-      background: #1e293b;
+      background: #050505;
       color: #f8fafc;
-      border: 1px solid #334155;
-      border-radius: 8px;
+      border: 2px solid #050505;
+      box-shadow: 2px 2px 0 #050505;
+      border-radius: 10px;
       padding: 6px 12px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      transition: all 0.2s ease;
+      transition: all 0.15s ease;
     }
     .btn-torch.active {
       background: #f59e0b;
-      color: #0f172a;
-      border-color: #d97706;
-      font-weight: 700;
+      color: #050505;
+      border-color: #050505;
+      font-weight: 800;
     }
     .btn-flip-camera {
-      background: #1e293b;
-      color: #f8fafc;
-      border: 1px solid #334155;
-      border-radius: 8px;
+      background: #050505;
+      color: #ffffff;
+      border: 2px solid #050505;
+      box-shadow: 2px 2px 0 #050505;
+      border-radius: 10px;
       padding: 6px 12px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      transition: all 0.2s ease;
+      transition: all 0.15s ease;
     }
     .btn-flip-camera:hover {
-      background: #334155;
-      border-color: #475569;
+      background: #262626;
     }
     .btn-flip-camera.active-front {
-      background: #0284c7;
-      border-color: #0369a1;
+      background: var(--naguara-orange, #FF5A0D);
+      border-color: #050505;
       color: #ffffff;
-      font-weight: 700;
+      font-weight: 800;
     }
     #cameraVideo.camera-mirrored,
     .camera-mirrored video,
@@ -606,16 +627,22 @@
       opacity: 1;
     }
     .kiosk-toast-notification.success {
-      background: linear-gradient(135deg, #065f46, #047857);
-      border-color: #10b981;
+      background: #ffffff;
+      border-color: #050505;
+      color: #050505;
+      box-shadow: 4px 4px 0 #050505;
     }
     .kiosk-toast-notification.info {
-      background: linear-gradient(135deg, #0c4a6e, #0284c7);
-      border-color: #38bdf8;
+      background: #ffffff;
+      border-color: #050505;
+      color: #050505;
+      box-shadow: 4px 4px 0 #050505;
     }
     .kiosk-toast-notification.warning {
-      background: linear-gradient(135deg, #78350f, #d97706);
-      border-color: #f59e0b;
+      background: #fef3c7;
+      border-color: #050505;
+      color: #050505;
+      box-shadow: 4px 4px 0 #050505;
     }
 
     /* Layout Optimizado: Solo Escáner + Carrito */
@@ -633,11 +660,11 @@
         padding-bottom: 96px !important;
       }
       .scanner-card-box {
-        padding: 12px !important;
+        padding: 14px !important;
         margin-bottom: 0 !important;
       }
       .camera-viewport-container {
-        height: 180px !important;
+        height: 190px !important;
       }
     }
 
@@ -654,8 +681,8 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+      border-bottom: 2px solid #050505;
     }
     .scanned-items-list {
       display: flex;
@@ -673,14 +700,16 @@
       justify-content: space-between;
       gap: 12px;
       padding: 12px 14px;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
+      background: #FFFAF1;
+      border: 2px solid #050505;
+      box-shadow: 2px 2px 0px #050505;
+      border-radius: 14px;
       transition: all 0.15s ease;
     }
     .scanned-item-card:hover {
-      background: #f1f5f9;
-      border-color: #cbd5e1;
+      background: #ffffff;
+      transform: translateY(-1px);
+      box-shadow: 3px 3px 0px #050505;
     }
     .scanned-item-left {
       display: flex;
@@ -691,12 +720,12 @@
     }
     .scanned-item-icon {
       font-size: 22px;
-      width: 38px;
-      height: 38px;
+      width: 40px;
+      height: 40px;
       display: grid;
       place-items: center;
       background: #ffffff;
-      border: 1px solid #e2e8f0;
+      border: 1.5px solid #050505;
       border-radius: 10px;
       flex-shrink: 0;
     }
@@ -707,14 +736,14 @@
     .scanned-item-title {
       font-weight: 700;
       font-size: 13px;
-      color: #0f172a;
+      color: #050505;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .scanned-item-unitprice {
       font-size: 11px;
-      color: #64748b;
+      color: #5F5950;
       margin-top: 1px;
     }
     .scanned-item-right {
@@ -724,9 +753,11 @@
       flex-shrink: 0;
     }
     .scanned-item-subtotal {
-      font-size: 14px;
+      font-family: var(--font-display, 'Bebas Neue', sans-serif);
+      font-size: 19px;
+      letter-spacing: 0.5px;
       font-weight: 800;
-      color: #0f172a;
+      color: var(--naguara-orange, #FF5A0D);
       text-align: right;
       min-width: 68px;
     }
@@ -736,10 +767,11 @@
       gap: 4px;
     }
     .btn-delete-item {
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
       background: #fee2e2;
-      border: 1px solid #fecaca;
+      border: 2px solid #050505;
+      box-shadow: 2px 2px 0px #050505;
       color: #dc2626;
       border-radius: 8px;
       display: grid;
@@ -752,17 +784,18 @@
     .btn-delete-item:hover, .btn-delete-item:active {
       background: #ef4444;
       color: white;
-      border-color: #ef4444;
-      transform: scale(1.05);
+      transform: translate(1px, 1px);
+      box-shadow: 1px 1px 0px #050505;
     }
     .btn-clear-header {
       background: #fee2e2;
       color: #b91c1c;
-      border: 1px solid #fca5a5;
+      border: 2px solid #050505;
+      box-shadow: 2px 2px 0px #050505;
       border-radius: 8px;
-      padding: 5px 10px;
+      padding: 5px 12px;
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 800;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
@@ -775,22 +808,22 @@
     }
     .scanned-empty-state {
       text-align: center;
-      padding: 34px 16px;
-      color: #64748b;
+      padding: 24px 16px;
+      color: #5F5950;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
     .scanned-empty-state .empty-icon {
       font-size: 38px;
-      background: #f1f5f9;
-      width: 70px;
-      height: 70px;
+      background: #ffffff;
+      width: 76px;
+      height: 76px;
       border-radius: 50%;
       display: grid;
       place-items: center;
-      border: 2px dashed #cbd5e1;
+      border: 2px dashed #050505;
     }
   </style>
 </head>
@@ -798,33 +831,35 @@
   <!-- Notificación Flotante Superior -->
   <div id="kioskToastNotification" class="kiosk-toast-notification"></div>
 
-  <!-- Barra Superior Kiosco -->
+  <!-- Barra Superior Kiosco Naguaralabs -->
   <header class="kiosk-header">
     <a class="kiosk-brand" href="/autopago">
-      <span class="kiosk-logo-badge" id="kioskLogoBadge">⚡</span>
+      <span class="kiosk-logo-badge" id="kioskLogoBadge">
+        <img src="/img/mascot/avatar.png" alt="El Pana Naguaralabs" />
+      </span>
       <div>
-        <span id="kioskBrandName">SkyPay Kiosco</span>
-        <div style="font-size:11px; font-weight:500; color:#94a3b8;">Autopago Express · Skylink Pay</div>
+        <span id="kioskBrandName">NAGUARALABS KIOSCO</span>
+        <div style="font-family:var(--font-body); font-size:11px; font-weight:700; color:#5F5950; letter-spacing:0;">Autopago Express · Skylink Pay a Tasa BCV</div>
       </div>
     </a>
     <div class="kiosk-meta">
       <span class="kiosk-badge rate" id="bcvBadge">🏛️ BCV: Bs. 37.50</span>
       <span class="kiosk-badge live-dot" id="liveClock">--:--</span>
       <nav class="header-links" aria-label="Navegación">
-        <a href="/autopago" class="active" style="background:#1e293b; color:white;">🛒 Kiosco</a>
-        <a href="/admin" style="color:#cbd5e1;">📦 Admin</a>
-        <a href="/chat" style="color:#cbd5e1;">💬 Chat IA</a>
+        <a href="/autopago" class="active" style="background:var(--naguara-orange, #FF5A0D); color:white; border:2px solid #050505; box-shadow:2px 2px 0 #050505; font-weight:800; border-radius:10px;">🛒 Kiosco</a>
+        <a href="/admin" style="color:#050505; font-weight:800;">📦 Admin</a>
+        <a href="/chat" style="color:#050505; font-weight:800;">💬 Chat IA</a>
       </nav>
     </div>
   </header>
 
   <section class="page-heading kiosk-heading">
     <div>
-      <p class="eyebrow">AUTOPAGO EXPRESS</p>
-      <h1>Escanea tus productos para pagar</h1>
-      <p>El escáner agrega automáticamente tus artículos al carrito oficial.</p>
+      <p class="eyebrow" style="color:var(--naguara-orange, #FF5A0D); font-family:var(--font-display); font-size:14px; letter-spacing:1px; margin-bottom:2px;">¡NA' GUARA DE RÁPIDO! · AUTOPAGO EXPRESS</p>
+      <h1 style="font-family:var(--font-display); font-size:36px; letter-spacing:0.5px; color:#050505; margin:0;">ESCANEA TUS PRODUCTOS PARA PAGAR</h1>
+      <p style="color:#5F5950; font-size:14px; margin-top:4px;">El escáner agrega automáticamente tus artículos al carrito oficial.</p>
     </div>
-    <span class="service-badge">Pasarela Oficial Skylink Pay</span>
+    <span class="service-badge" style="font-weight:800; color:#050505; background:#ffffff; border:2px solid #050505; padding:6px 14px; border-radius:20px; box-shadow:2px 2px 0 #050505;">Pasarela Oficial Skylink Pay</span>
   </section>
 
   <div class="container kiosk-container">
@@ -921,10 +956,12 @@
       <!-- Lista de Items Escaneados con controles y botón de eliminar individual -->
       <div class="scanned-items-list" id="cartItems">
         <div class="scanned-empty-state">
-          <span class="empty-icon">📷</span>
-          <div style="font-weight:700; font-size:15px; color:#0f172a;">Ningún producto escaneado aún</div>
-          <p style="color:#64748b; font-size:12px; margin:2px 0 0; max-width:260px;">
-            Pasa tus productos frente a la cámara para verlos en tu carrito y pagarlos.
+          <div class="empty-mascot-box" style="margin-bottom:8px;">
+            <img src="/img/mascot/con-telefono.png" alt="El Pana Naguaralabs" style="width:125px; height:auto; filter:drop-shadow(2px 4px 0px rgba(5,5,5,0.12));" />
+          </div>
+          <div style="font-family:var(--font-display, 'Bebas Neue'); font-size:24px; color:#050505; letter-spacing:0.5px;">¡TU CARRITO ESTÁ LISTO, PANA!</div>
+          <p style="color:#5F5950; font-size:13px; margin:2px 0 0; max-width:280px; font-weight:500;">
+            Pasa tus productos frente a la cámara o toca las pruebas rápidas para agregarlos al momento.
           </p>
         </div>
       </div>
@@ -933,11 +970,11 @@
       <div class="cart-footer-actions">
         <div class="cart-total-box">
           <div class="cart-total-row">
-            <span style="font-size:12px; color:#64748b; font-weight:600;">Referencia USD (Tasa BCV):</span>
-            <span class="cart-total-usd" id="cartTotalUSD">$0.00</span>
+            <span style="font-size:12px; color:#5F5950; font-weight:700;">Referencia USD (Tasa Oficial BCV):</span>
+            <span class="cart-total-usd" id="cartTotalUSD" style="font-weight:700; color:#5F5950;">$0.00</span>
           </div>
-          <div class="cart-total-row">
-            <span style="font-size:15px; color:#0f172a; font-weight:800;">TOTAL A PAGAR:</span>
+          <div class="cart-total-row" style="margin-top:6px;">
+            <span style="font-size:16px; color:#050505; font-weight:900; font-family:var(--font-display); letter-spacing:0.5px;">TOTAL A PAGAR:</span>
             <span class="cart-total-bs" id="cartTotalBS">Bs. 0.00</span>
           </div>
         </div>
@@ -945,11 +982,11 @@
         <p id="paymentError" class="inline-message" role="alert" hidden></p>
 
         <button class="btn-pay" id="btnPay" disabled onclick="iniciarCobro()">
-          Comprar
-          <span>Continuar a datos de facturación ➔</span>
+          <span>COMPRAR AHORA</span>
+          <small style="font-size:11px; font-weight:500; opacity:0.95;">Continuar a datos de facturación ➔</small>
         </button>
 
-        <button type="button" class="btn-clear" id="btnClearFooter" onclick="limpiarCarrito()" style="display:none;">
+        <button type="button" class="btn-clear" id="btnClearFooter" onclick="limpiarCarrito()" style="display:none; font-weight:700; color:#dc2626;">
           🗑️ Vaciar todo el carrito
         </button>
       </div>
@@ -959,9 +996,38 @@
     <div id="productsGrid" style="display:none;"></div>
   </div>
 
-  <footer class="page-footer">
-    <span>SkyPay Kiosco · Autopago con Skylink Pay</span>
-    <span>Valink Group Merchant API · Licencia Autorizada</span>
+  <!-- CTA Banner Naguaralabs: ¿Quieres este sistema? -->
+  <section class="kiosk-cta-section" style="max-width: 1200px; margin: 24px auto 16px; padding: 0 16px;">
+    <div style="background: #ffffff; border: 3px solid #050505; border-radius: 20px; box-shadow: 4px 4px 0px #050505; padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="width: 58px; height: 58px; border-radius: 50%; border: 2.5px solid #050505; box-shadow: 2px 2px 0 #050505; overflow: hidden; background: #FFFAF1; flex-shrink: 0; display: grid; place-items: center;">
+          <img src="/img/mascot/sonriendo-circulo.png" alt="Mascota Naguaralabs" style="width: 100%; height: 100%; object-fit: cover;">
+        </div>
+        <div>
+          <div style="font-family: var(--font-display, 'Bebas Neue', sans-serif); font-size: 26px; line-height: 1.1; color: #050505; letter-spacing: 0.5px;">
+            ¿QUIERES ESTE SISTEMA EN TU COMERCIO?
+          </div>
+          <p style="margin: 4px 0 0; font-family: var(--font-body, 'Inter', sans-serif); font-size: 13.5px; color: #5F5950; font-weight: 500;">
+            Kiosco de autopago con escáner, tasa BCV en vivo y cobro automático por Pago Móvil.
+          </p>
+        </div>
+      </div>
+      <div>
+        <a href="https://wa.me/584248166789?text=Hola%20NaguaraLabs.%20Quiero%20m%C3%A1s%20info%20del%20sistema%20de%20autopago" 
+           target="_blank" 
+           rel="noopener noreferrer" 
+           style="display: inline-flex; align-items: center; gap: 10px; background: #25D366; color: #ffffff; text-decoration: none; font-family: var(--font-display, 'Bebas Neue', sans-serif); font-size: 20px; font-weight: 800; letter-spacing: 0.5px; padding: 12px 26px; border-radius: 14px; border: 3px solid #050505; box-shadow: 3px 3px 0 #050505; transition: transform 0.1s ease, box-shadow 0.1s ease; cursor: pointer;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.696c1.006.55 1.766.783 2.806.783 3.182 0 5.768-2.587 5.768-5.766.001-3.18-2.585-5.766-5.768-5.766zm9.969 5.766c0 5.518-4.482 10-10 10-1.748 0-3.385-.45-4.819-1.238l-7.181 1.881 1.916-6.995c-.86-1.488-1.354-3.22-1.354-5.067 0-5.518 4.482-10 10-10 5.518 0 10 4.482 10 10z"/>
+          </svg>
+          <span>PÍDELO AQUÍ</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="page-footer" style="text-align:center; padding:18px; color:#5F5950; font-size:12px; font-weight:600;">
+    <span>Naguaralabs Kiosco · Autopago con Skylink Pay a Tasa Oficial BCV</span>
   </footer>
 
   <script>
@@ -1299,10 +1365,12 @@
       if (carrito.length === 0) {
         container.innerHTML = `
           <div class="scanned-empty-state">
-            <span class="empty-icon">📷</span>
-            <div style="font-weight:700; font-size:15px; color:#0f172a;">Ningún producto escaneado aún</div>
-            <p style="color:#64748b; font-size:12px; margin:2px 0 0; max-width:260px;">
-              Pasa tus productos frente a la cámara para verlos en tu carrito y pagarlos.
+            <div class="empty-mascot-box" style="margin-bottom:8px;">
+              <img src="/img/mascot/con-telefono.png" alt="El Pana Naguaralabs" style="width:125px; height:auto; filter:drop-shadow(2px 4px 0px rgba(5,5,5,0.12));" />
+            </div>
+            <div style="font-family:var(--font-display, 'Bebas Neue'); font-size:24px; color:#050505; letter-spacing:0.5px;">¡TU CARRITO ESTÁ LISTO, PANA!</div>
+            <p style="color:#5F5950; font-size:13px; margin:2px 0 0; max-width:280px; font-weight:500;">
+              Pasa tus productos frente a la cámara o toca las pruebas rápidas para agregarlos al momento.
             </p>
           </div>
         `;
@@ -1311,7 +1379,7 @@
         if (stickyTotalBs) stickyTotalBs.textContent = 'Bs. 0.00';
         if (stickyTotalUsd) stickyTotalUsd.textContent = '$0.00';
         if (btnPay) {
-          btnPay.innerHTML = `Comprar <span>Continuar a datos de facturación ➔</span>`;
+          btnPay.innerHTML = `<span>COMPRAR AHORA</span> <small style="font-size:11px; font-weight:500; opacity:0.95;">Continuar a datos de facturación ➔</small>`;
         }
         actualizarEstadoPago();
         return;
@@ -1361,7 +1429,7 @@
       if (stickyTotalBs) stickyTotalBs.textContent = `Bs. ${totalBs.toFixed(2)}`;
       if (stickyTotalUsd) stickyTotalUsd.textContent = `≈ $${totalUsd} USD`;
       if (btnPay) {
-        btnPay.innerHTML = `Comprar (${totalItems}) · Bs. ${totalBs.toFixed(2)} <span>Continuar a datos de facturación ➔</span>`;
+        btnPay.innerHTML = `<span>COMPRAR AHORA (${totalItems}) · Bs. ${totalBs.toFixed(2)}</span> <span>Continuar a datos de facturación ➔</span>`;
       }
       actualizarEstadoPago();
     }
@@ -2361,7 +2429,10 @@
         const res = await fetch('/api/public-config');
         const json = await res.json();
         if (json.success && json.data) {
-          const name = json.data.storeName || 'SkyPay Kiosco';
+          let name = json.data.storeName || 'Naguaralabs';
+          if (!name || name.toLowerCase().includes('mi tienda') || name.toLowerCase().includes('skypay')) {
+            name = 'Naguaralabs';
+          }
           const brandEl = document.getElementById('kioskBrandName');
           if (brandEl) brandEl.textContent = name;
           document.title = `${name} · Autopago Express`;

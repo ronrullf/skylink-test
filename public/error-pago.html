@@ -3,44 +3,44 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Error en el Pago · Skylink Pay (Valink Group)</title>
+  <title>Error en el Pago · Naguaralabs (Skylink Pay)</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    body { background-color: #f8fafc; color: #0f172a; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 16px; }
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700;800&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, sans-serif; }
+    body { background-color: #FFFAF1; color: #050505; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 16px; }
 
     .error-card {
       background: white;
-      border-radius: 24px;
+      border-radius: 20px;
       max-width: 480px;
       width: 100%;
       padding: 32px 28px;
-      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.06), 0 8px 10px -6px rgba(0,0,0,0.02);
-      border: 1px solid #fee2e2;
+      box-shadow: 6px 6px 0px #050505;
+      border: 3px solid #050505;
       text-align: center;
       animation: pop 0.25s ease-out;
     }
     @keyframes pop { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-    .error-icon-box {
-      width: 64px;
-      height: 64px;
-      border-radius: 50%;
-      background: #fee2e2;
-      color: #dc2626;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 32px;
-      margin: 0 auto 16px;
+    .error-mascot-box {
+      width: 90px;
+      height: auto;
+      margin: 0 auto 12px;
+    }
+    .error-mascot-box img {
+      width: 100%;
+      height: auto;
+      filter: drop-shadow(2px 3px 0px rgba(5,5,5,0.12));
     }
 
-    .error-title { font-size: 20px; font-weight: 800; color: #b91c1c; margin-bottom: 6px; }
-    .error-subtitle { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+    .error-title { font-family: 'Bebas Neue', Impact, sans-serif; font-size: 32px; letter-spacing: 0.5px; font-weight: 800; color: #dc2626; margin-bottom: 4px; }
+    .error-subtitle { font-size: 14px; color: #5F5950; margin-bottom: 20px; font-weight: 500; }
 
     /* Caja de Razón del Banco */
     .reason-box {
-      background: #fef2f2;
-      border: 1px solid #fecaca;
+      background: #fff2ee;
+      border: 2px solid #050505;
+      box-shadow: 2px 2px 0px #050505;
       border-radius: 14px;
       padding: 16px;
       text-align: left;
@@ -53,16 +53,18 @@
       font-size: 11px;
       font-weight: 800;
       padding: 3px 8px;
+      border: 1px solid #050505;
       border-radius: 6px;
       text-transform: uppercase;
       margin-bottom: 6px;
     }
-    .reason-headline { font-size: 16px; font-weight: 700; color: #991b1b; margin-bottom: 4px; }
-    .reason-text { font-size: 13px; color: #7f1d1d; line-height: 1.4; }
+    .reason-headline { font-size: 16px; font-weight: 800; color: #991b1b; margin-bottom: 4px; }
+    .reason-text { font-size: 13px; color: #050505; line-height: 1.4; font-weight: 500; }
 
     .order-summary {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
+      background: #FFFAF1;
+      border: 2px solid #050505;
+      box-shadow: 2px 2px 0px #050505;
       border-radius: 12px;
       padding: 12px 14px;
       font-size: 13px;
@@ -72,12 +74,15 @@
     .summary-row { display: flex; justify-content: space-between; padding: 4px 0; }
 
     .btn-retry {
-      background: #0047FF;
+      background: #FF5A0D;
       color: white;
-      border: none;
+      border: 2.5px solid #050505;
+      box-shadow: 3px 3px 0px #050505;
       border-radius: 12px;
-      padding: 16px;
-      font-size: 15px;
+      padding: 14px;
+      font-family: 'Bebas Neue', Impact, sans-serif;
+      font-size: 20px;
+      letter-spacing: 0.5px;
       font-weight: 800;
       width: 100%;
       cursor: pointer;
@@ -85,19 +90,32 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      box-shadow: 0 4px 12px rgba(0,71,255,0.25);
-      transition: background 0.15s ease;
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
     }
-    .btn-retry:hover { background: #0036cc; }
+    .btn-retry:hover { background: #E84B00; }
+    .btn-retry:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0px #050505; }
 
     .btn-back {
       background: none;
       border: none;
-      color: #64748b;
+      color: #5F5950;
       font-size: 13px;
+      font-weight: 700;
       cursor: pointer;
-      margin-top: 12px;
+      margin-top: 14px;
       text-decoration: underline;
+    }
+    .btn-back:hover { color: #050505; }
+  </style>
+</head>
+<body>
+
+  <div class="error-card">
+    <div class="error-mascot-box">
+      <img src="/img/mascot/asombrado.png" alt="¡Detalle con el pago!" />
+    </div>
+    <div class="error-title">¡EPALE PANA! EL BANCO RECHAZÓ EL PAGO</div>
+    <div class="error-subtitle">No se realizó ningún cobro a tu cuenta. Revisa el detalle informado por el banco:</div>
     }
   </style>
 </head>

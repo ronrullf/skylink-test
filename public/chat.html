@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Simulador de Agente WhatsApp con IA · Skylink Pay</title>
+  <title>Simulador de Agente WhatsApp con IA · Naguaralabs</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
     body { background-color: #0b141a; color: #e9edef; min-height: 100vh; display: flex; justify-content: center; }
@@ -302,15 +302,15 @@
   <div class="app-wrapper">
     <header>
       <div class="header-user">
-        <div class="avatar">
-          🤖
+        <div class="avatar" style="overflow:hidden; border:2px solid #25d366; background:#FF5A0D;">
+          <img src="/img/mascot/avatar.png" alt="El Pana Naguaralabs" style="width:100%; height:100%; object-fit:cover;">
           <span class="avatar-badge"></span>
         </div>
         <div class="user-info">
-          <h2>Mi Tienda <span class="badge-ia">Skylink IA</span></h2>
+          <h2>Naguaralabs <span class="badge-ia" style="background:#FF5A0D; color:#fff;">Agente Pana</span></h2>
           <div class="status-text" id="agentStatusText">
             <span class="status-dot"></span>
-            En línea · Ventas y Envíos por WhatsApp
+            En línea · Ventas y Despacho Express
           </div>
         </div>
       </div>
@@ -324,17 +324,17 @@
 
     <div class="info-bar">
       <span>Tasa Oficial BCV: <strong id="infoBcvRate">Bs. 37.50/$</strong></span>
-      <span>Pasarela: <strong>Skylink Pay (Valink Group)</strong></span>
+      <span>Pasarela: <strong>Skylink Pay a Tasa BCV</strong></span>
     </div>
 
     <main class="chat-messages" id="chatMessages">
       <div class="msg-row received">
         <div class="msg-bubble">
-¡Hola! 👋 Soy el asistente de ventas con IA de <strong>Mi Tienda</strong>.
+¡Epale pana! 👋 Soy el asistente de ventas con IA de <strong>Naguaralabs</strong>.
 
 Dime qué producto deseas comprar o consultar (por ejemplo: <em>"Quiero 2 kilos de arroz"</em> o <em>"Dame 1 harina y 1 café"</em>).
 
-Te generaré de inmediato tu <strong>enlace oficial de pago con Skylink Pay</strong> (cotizado a tasa BCV en céntimos) y coordinaremos tu despacho por aquí. 🚀
+Te cotizo de inmediato a tasa oficial BCV y te genero tu <strong>enlace oficial de pago con Skylink Pay</strong> para procesar tu factura y coordinar tu despacho. 🚀
           <div class="msg-time">Ahora</div>
         </div>
       </div>

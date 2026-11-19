@@ -1,15 +1,53 @@
-/* Shared visual language for kiosk and payment-link admin. */
+/* ========================================================= */
+/* NAGUARALABS DESIGN SYSTEM (Inspirado en Tienda Pana)       */
+/* ========================================================= */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800;900&display=swap');
+
 :root {
-  --ink: #182724;
-  --muted: #697773;
-  --line: #e1e7e3;
-  --paper: #f6f8f6;
-  --accent: #245c49;
-  --soft: #edf4ef;
-  --emerald: #10b981;
-  --emerald-dark: #059669;
-  --radius: 16px;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  /* Paleta Canónica Naguaralabs (Single Source of Truth) */
+  --naguara-orange: #FF5A0D;
+  --naguara-orange-dark: #E84B00;
+  --naguara-orange-glow: rgba(255, 90, 13, 0.28);
+  --naguara-cream: #FFFAF1;
+  --naguara-ink: #050505;
+  --naguara-white: #FFFFFF;
+  --naguara-green: #248A38;
+  --naguara-green-soft: #E8F8EC;
+  --naguara-blue: #1D57D6;
+  --cap-blue: #0033A5;
+  --cap-red: #F20D25;
+  --cap-yellow: #FFC928;
+  --skin-base: #FFE7C7;
+  --skin-shadow: #F4A15B;
+
+  /* Asignaciones Semánticas Globales */
+  --ink: var(--naguara-ink);
+  --muted: #5F5950;
+  --line: #050505;
+  --line-soft: #E5DAC2;
+  --paper: var(--naguara-cream);
+  --accent: var(--naguara-orange);
+  --accent-dark: var(--naguara-orange-dark);
+  --soft: #FFF3EB;
+  --emerald: #248A38;
+  --emerald-dark: #1E702D;
+  --radius: 18px;
+  --radius-pill: 999px;
+
+  /* Bordes y Sombras Neo-Brutalistas tipo Cómic */
+  --border-comic: 3px solid #050505;
+  --border-comic-thick: 4px solid #050505;
+  --border-comic-thin: 1.5px solid #050505;
+  --shadow-comic: 4px 4px 0px #050505;
+  --shadow-comic-lg: 6px 6px 0px #050505;
+  --shadow-comic-sm: 2px 2px 0px #050505;
+  --shadow-comic-pressed: 1px 1px 0px #050505;
+
+  /* Tipografías */
+  --font-display: 'Bebas Neue', Impact, 'Arial Black', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  font-family: var(--font-body);
   color: var(--ink);
   background: var(--paper);
   -webkit-tap-highlight-color: transparent;
@@ -187,10 +225,12 @@ header {
 
 .card, .cart-box, .scanner-card-box {
   background: #fff;
-  border: 1px solid var(--line);
+  border: var(--border-comic);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-comic);
   padding: 20px;
   margin-bottom: 20px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .cart-box, .main-container > aside {
@@ -464,9 +504,11 @@ header {
 }
 
 .cart-total-bs {
-  font-size: 25px;
+  font-family: var(--font-display);
+  font-size: 32px;
   font-weight: 800;
-  letter-spacing: -.6px;
+  letter-spacing: 0.5px;
+  color: var(--naguara-ink);
 }
 
 .btn-pay, .btn-create-link, .btn-print {
@@ -475,30 +517,36 @@ header {
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 3px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--accent);
+  gap: 4px;
+  border: var(--border-comic);
+  border-radius: var(--radius-btn, 14px);
+  background: var(--naguara-orange);
+  box-shadow: var(--shadow-comic);
   color: white;
   padding: 14px 16px;
-  font-size: 15px;
-  font-weight: 700;
-  min-height: 48px;
-  transition: transform .1s ease, filter .15s ease;
+  font-family: var(--font-display);
+  font-size: 19px;
+  letter-spacing: 0.5px;
+  min-height: 52px;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease;
 }
 
 .btn-pay:hover:not(:disabled), .btn-create-link:hover:not(:disabled), .btn-print:hover:not(:disabled) {
-  background: #194433;
+  background: var(--naguara-orange-dark);
+  box-shadow: var(--shadow-comic-lg);
 }
 
 .btn-pay:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-comic-pressed);
 }
 
 .btn-pay span {
-  font-size: 10px;
-  font-weight: 400;
-  opacity: .85;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  opacity: .95;
+  letter-spacing: normal;
 }
 
 .btn-clear, .text-button {
@@ -926,24 +974,36 @@ header {
     font-weight: 800;
   }
 
-  /* Botón de Comprar / Pagar: Gran visibilidad sin scroll */
+  /* Botón de Comprar / Pagar Naguaralabs: Cómic Naranja */
   body.kiosk-body .btn-pay {
-    min-height: 52px;
-    padding: 10px 14px;
-    font-size: 15px;
+    min-height: 54px;
+    padding: 10px 16px;
+    font-family: var(--font-display);
+    font-size: 19px;
+    letter-spacing: 0.5px;
     font-weight: 800;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #10b981, #059669);
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+    border-radius: var(--radius-btn, 14px);
+    border: var(--border-comic);
+    background: var(--naguara-orange);
+    color: white;
+    box-shadow: var(--shadow-comic);
+    transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease;
   }
 
   body.kiosk-body .btn-pay:hover:not(:disabled) {
-    background: linear-gradient(135deg, #059669, #047857);
+    background: var(--naguara-orange-dark);
+    box-shadow: var(--shadow-comic-lg);
+  }
+
+  body.kiosk-body .btn-pay:active:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: var(--shadow-comic-pressed);
   }
 
   body.kiosk-body .btn-pay:disabled {
-    background: #cbd5e1;
-    color: #64748b;
+    background: #e5dac2;
+    color: #8c8270;
+    border-color: #8c8270;
     box-shadow: none;
     opacity: 0.65;
   }
@@ -1016,23 +1076,36 @@ header {
   }
 
   .btn-sticky-pay {
-    background: linear-gradient(135deg, #10b981, #059669);
+    background: var(--naguara-orange);
     color: white;
-    border: none;
-    border-radius: 10px;
+    border: var(--border-comic);
+    border-radius: var(--radius-btn, 14px);
     padding: 10px 18px;
-    font-size: 14px;
+    font-family: var(--font-display);
+    font-size: 16px;
+    letter-spacing: 0.5px;
     font-weight: 800;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    box-shadow: var(--shadow-comic-sm);
     display: flex;
     align-items: center;
     gap: 6px;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+
+  .btn-sticky-pay:hover:not(:disabled) {
+    background: var(--naguara-orange-dark);
+  }
+
+  .btn-sticky-pay:active:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: none;
   }
 
   .btn-sticky-pay:disabled {
-    background: #475569;
-    color: #94a3b8;
+    background: #e5dac2;
+    color: #8c8270;
+    border-color: #8c8270;
     box-shadow: none;
     cursor: not-allowed;
     opacity: 0.7;
