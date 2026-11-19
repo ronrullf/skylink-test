@@ -1,0 +1,1263 @@
+/* ==========================================================================
+   Naguaralabs Kiosco UI — Diseño Unificado Kiosk Bundle + Estética Oficial
+   Paleta: Crema (#FFFAF1), Naranja (#FF5A0D), Tinta (#050505), Verde (#248A38)
+   Tipografía: Bebas Neue (titulares/totales) + Figtree/Inter (lectura nítida)
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/kiosco/fonts/figtree-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/kiosco/fonts/jetbrains-mono-latin.woff2') format('woff2');
+}
+
+:root {
+  /* Paleta Oficial Naguaralabs */
+  --naguara-orange: #FF5A0D;
+  --naguara-orange-dark: #E84B00;
+  --naguara-cream: #FFFAF1;
+  --naguara-ink: #050505;
+  --naguara-green: #248A38;
+  --naguara-green-soft: #E8F8EC;
+  --naguara-white: #FFFFFF;
+
+  /* Mapeo Semántico Kiosco */
+  --ink: var(--naguara-ink);
+  --muted: #5F5950;
+  --brand: var(--naguara-orange);
+  --brand-dark: var(--naguara-orange-dark);
+  --line: #050505;
+  --line-strong: #050505;
+  --bg: var(--naguara-cream);
+  --soft: #FFF2EB;
+  --danger: #DC2626;
+  --danger-soft: #FEE2E2;
+  --ok: var(--naguara-green);
+  --ok-soft: var(--naguara-green-soft);
+
+  /* Bordes y Sombras Neo-Brutalistas Cómic */
+  --border-comic: 3px solid #050505;
+  --border-comic-thin: 2px solid #050505;
+  --border-comic-thick: 4px solid #050505;
+  --shadow-comic: 4px 4px 0px #050505;
+  --shadow-comic-lg: 6px 6px 0px #050505;
+  --shadow-comic-sm: 2px 2px 0px #050505;
+  --shadow-comic-pressed: 1px 1px 0px #050505;
+
+  /* Tipografías */
+  --font-display: 'Bebas Neue', Impact, sans-serif;
+  --font-body: 'Figtree', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+}
+body {
+  font-family: var(--font-body);
+  font-size: 15px;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: 0;
+  background: none;
+  color: inherit;
+  touch-action: manipulation;
+}
+button:disabled { cursor: not-allowed; }
+input { font-family: inherit; }
+a { color: var(--brand); }
+a:hover { color: var(--brand-dark); }
+[hidden] { display: none !important; }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- Contenedor Principal Kiosk ---------- */
+.kiosk {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+.screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.screen[hidden] { display: none !important; }
+
+/* ---------- Barra Superior (Header Kiosco Naguaralabs) ---------- */
+.k-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 22px;
+  background: #ffffff;
+  border-bottom: var(--border-comic);
+  box-shadow: 0 4px 0 rgba(5, 5, 5, 0.05);
+  flex: none;
+  flex-wrap: wrap;
+}
+.k-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.k-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--brand);
+  border: var(--border-comic-thin);
+  box-shadow: var(--shadow-comic-sm);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.k-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.k-brand-text { display: flex; flex-direction: column; }
+.k-brand-name {
+  font-family: var(--font-display);
+  font-size: 26px;
+  letter-spacing: 0.5px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+.k-brand-sub {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.k-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Indicador de Pasos del Kiosco */
+.k-steps { display: flex; gap: 4px; align-items: center; }
+.k-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 750;
+  background: transparent;
+  color: #5F5950;
+  border: 1.5px solid transparent;
+}
+.k-step .dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11.5px;
+  font-weight: 800;
+  border: 1.5px solid #050505;
+  background: #ffffff;
+  color: #050505;
+}
+.k-step.current {
+  background: #ffffff;
+  color: #050505;
+  border: 2px solid #050505;
+  box-shadow: 2px 2px 0 #050505;
+}
+.k-step.current .dot {
+  background: var(--brand);
+  color: #fff;
+}
+.k-step.done { color: #050505; }
+.k-step.done .dot {
+  background: var(--ok);
+  color: #fff;
+}
+
+/* Píldoras de Información (Tasa y Reloj) */
+.k-info { display: flex; align-items: center; gap: 8px; }
+.k-pill {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: var(--border-comic-thin);
+  box-shadow: var(--shadow-comic-sm);
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #050505;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.k-pill.rate {
+  background: #ffffff;
+}
+.k-pill.live-dot::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--ok);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--ok);
+}
+.k-pill.clock { font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  .k-info .k-pill { height: 32px; padding: 0 10px; font-size: 12px; }
+}
+
+/* Botón de Ayuda */
+.btn-help {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: var(--border-comic-thin);
+  box-shadow: var(--shadow-comic-sm);
+  background: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.btn-help:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #050505;
+}
+.btn-help:active {
+  transform: translate(1px, 1px);
+  box-shadow: 0 0 0 #050505;
+}
+.btn-help .q {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* Botones Principales Cómic */
+.btn-primary {
+  height: 56px;
+  border-radius: 14px;
+  background: var(--brand);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.5px;
+  font-weight: 800;
+  border: var(--border-comic);
+  box-shadow: var(--shadow-comic);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-dark);
+  box-shadow: var(--shadow-comic-lg);
+  transform: translate(-1px, -1px);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-comic-pressed);
+}
+.btn-primary:disabled {
+  background: #e5dac2;
+  color: #8c8270;
+  border-color: #8c8270;
+  box-shadow: none;
+  opacity: 0.7;
+}
+
+.btn-ghost {
+  height: 40px;
+  font-size: 13.5px;
+  font-weight: 750;
+  color: #b91c1c;
+  cursor: pointer;
+}
+.btn-ghost:hover { text-decoration: underline; }
+
+.btn-link {
+  align-self: flex-start;
+  height: 40px;
+  font-size: 15px;
+  font-weight: 750;
+  color: var(--brand);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.btn-link:hover { text-decoration: underline; }
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,.35);
+  border-top-color: #fff;
+  animation: spin .8s linear infinite;
+}
+
+/* ---------- Pantalla 2 · Compra Kiosco ---------- */
+.s-compra {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 14px clamp(12px, 2vw, 24px) 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.95fr);
+  gap: clamp(14px, 2vw, 22px);
+  align-items: start;
+}
+.c-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Tarjeta Base Cómic */
+.card {
+  background: #fff;
+  border: var(--border-comic);
+  border-radius: 18px;
+  box-shadow: var(--shadow-comic);
+}
+
+/* Tarjeta del Escáner */
+.scan-card {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.scan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.scan-title-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.scan-icon {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  border-radius: 12px;
+  background: var(--soft);
+  border: 2px solid #050505;
+  box-shadow: 2px 2px 0 #050505;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 8px;
+}
+.scan-icon span { display: block; height: 24px; background: var(--brand); }
+.scan-head h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: 0.5px;
+  color: #050505;
+  line-height: 1.1;
+}
+.scan-head p {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Fila de Acciones y Controles del Escáner */
+.scan-actions-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+.scan-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: var(--border-comic-thin);
+  box-shadow: var(--shadow-comic-sm);
+  background: #ffffff;
+  color: #050505;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  user-select: none;
+}
+.scan-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #050505;
+}
+.scan-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 0 0 0 #050505;
+}
+.scan-btn.active-orange {
+  background: var(--brand);
+  color: #ffffff;
+}
+.scan-btn.active-torch {
+  background: #f59e0b;
+  color: #050505;
+}
+
+/* Visor de Cámara de Alta Velocidad */
+.cam-view,
+.camera-viewport-container {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #020617;
+  border: var(--border-comic);
+  box-shadow: var(--shadow-comic-sm);
+  height: clamp(210px, 32vh, 380px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cam-view video,
+#cameraVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: center center;
+}
+#cameraVideo.camera-mirrored,
+.camera-mirrored video,
+video.camera-mirrored {
+  transform: scaleX(-1) !important;
+  -webkit-transform: scaleX(-1) !important;
+}
+
+/* Marco de Puntería y Láser */
+.scanner-guide-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.scanner-aim-frame {
+  position: relative;
+  width: min(84%, 420px);
+  height: min(78%, 290px);
+  border: 2px dashed rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+  border-radius: 14px;
+}
+.scanner-aim-frame.scan-success {
+  border: 3px solid #22c55e;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.2), 0 0 24px #22c55e;
+}
+.scanner-corner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-color: #FF5A0D;
+  border-style: solid;
+}
+.corner-tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-top-left-radius: 6px; }
+.corner-tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-top-right-radius: 6px; }
+.corner-bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; border-bottom-left-radius: 6px; }
+.corner-br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-bottom-right-radius: 6px; }
+.scanner-laser {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #FF5A0D, #22c55e, #FF5A0D, transparent);
+  box-shadow: 0 0 8px #FF5A0D;
+  animation: laserScan 2s infinite ease-in-out;
+}
+@keyframes laserScan {
+  0% { top: 6%; opacity: 0.3; }
+  50% { top: 92%; opacity: 1; }
+  100% { top: 6%; opacity: 0.3; }
+}
+
+/* Badges de Zoom y Modo Registro */
+.scanner-zoom-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(5, 5, 5, 0.85);
+  border: 1.5px solid #FF5A0D;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  z-index: 10;
+}
+.scanner-zoom-controls {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+.btn-zoom-step {
+  background: rgba(5, 5, 5, 0.85);
+  border: 1.5px solid rgba(255,255,255,0.4);
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.btn-zoom-step.active {
+  background: var(--brand);
+  border-color: #fff;
+}
+
+/* Input Manual de Código */
+.scan-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.scan-row input {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  border-radius: 12px;
+  border: var(--border-comic-thin);
+  padding: 0 14px;
+  font-size: 16px;
+  background: #ffffff;
+  outline: none;
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.06);
+}
+.scan-row input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(255,90,13,0.2);
+}
+.btn-add {
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 12px;
+  background: var(--brand);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 19px;
+  letter-spacing: 0.5px;
+  border: var(--border-comic-thin);
+  box-shadow: var(--shadow-comic-sm);
+  white-space: nowrap;
+}
+.btn-add:hover {
+  background: var(--brand-dark);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #050505;
+}
+
+/* Toast / Notificación Flotante */
+.kiosk-toast-notification,
+.notice {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-30px);
+  background: #ffffff;
+  border: var(--border-comic);
+  box-shadow: var(--shadow-comic);
+  padding: 10px 20px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #050505;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.kiosk-toast-notification.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.kiosk-toast-notification.success {
+  background: #E8F8EC;
+  border-color: #050505;
+}
+
+/* ---------- Catálogo Táctil Rápido ("¿Sin código?") ---------- */
+.catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.catalog-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.catalog-head h3 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.5px;
+  color: #050505;
+}
+.catalog-head span {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.cats {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.cat-pill {
+  flex: none;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #fff;
+  border: var(--border-comic-thin);
+  box-shadow: var(--shadow-comic-sm);
+  font-size: 13.5px;
+  font-weight: 750;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.cat-pill:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #050505;
+}
+.cat-pill.active {
+  background: var(--brand);
+  color: #fff;
+  box-shadow: var(--shadow-comic-sm);
+}
+
+/* Grilla de Productos con Fotos Reales del Bundle */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  padding: 2px;
+}
+.p-card {
+  text-align: left;
+  background: #ffffff;
+  border: var(--border-comic-thin);
+  border-radius: 16px;
+  box-shadow: var(--shadow-comic-sm);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.12s ease;
+  user-select: none;
+}
+.p-card:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #050505;
+}
+.p-card:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 #050505;
+}
+.p-card.in-cart {
+  background: #FFF9F5;
+  border-color: var(--brand);
+}
+.p-img {
+  position: relative;
+  height: 92px;
+  border-radius: 10px;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.p-img img {
+  max-width: 100%;
+  max-height: 92px;
+  object-fit: contain;
+}
+.p-img .emoji {
+  font-size: 48px;
+  line-height: 1;
+}
+.p-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #ffffff;
+  border: 1.5px solid #050505;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+.p-name {
+  font-size: 13.5px;
+  font-weight: 750;
+  line-height: 1.25;
+  color: #050505;
+  flex: 1;
+}
+.p-price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px;
+}
+.p-price {
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  font-weight: 800;
+  color: #050505;
+}
+.p-ref {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+/* ---------- Columna Derecha: Tarjeta del Carrito ("Tu Cuenta") ---------- */
+.cart,
+.kiosk-scanned-box {
+  background: #ffffff;
+  border: var(--border-comic);
+  border-radius: 18px;
+  box-shadow: var(--shadow-comic);
+  display: flex;
+  flex-direction: column;
+}
+.cart-head,
+.cart-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 10px;
+  border-bottom: 2px dashed #050505;
+}
+.cart-head h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: 0.5px;
+  color: #050505;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.price-25-badge {
+  background: var(--soft);
+  color: var(--brand);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1.5px solid #050505;
+}
+.btn-clear-header {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1.5px solid #050505;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* Lista de Artículos Escaneados */
+.cart-list,
+.scanned-items-list {
+  flex: 1 1 auto;
+  min-height: 140px;
+  max-height: clamp(220px, 38vh, 480px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cart-empty,
+.scanned-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 24px 14px;
+  color: var(--muted);
+}
+.cart-empty b {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.5px;
+  color: #050505;
+}
+
+/* Tarjeta Individual de Item en Carrito */
+.scanned-item-card,
+.c-item {
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  grid-template-areas: "t i l" "t q l";
+  align-items: center;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  background: #FFFAF1;
+  border: var(--border-comic-thin);
+  border-radius: 14px;
+  box-shadow: 2px 2px 0px #050505;
+  transition: background 0.15s ease;
+}
+.scanned-item-card:hover {
+  background: #ffffff;
+}
+.c-thumb {
+  grid-area: t;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1.5px solid #050505;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.c-thumb img {
+  max-width: 38px;
+  max-height: 38px;
+  object-fit: contain;
+}
+.c-thumb .emoji { font-size: 24px; }
+.c-info {
+  grid-area: i;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.c-name {
+  font-size: 14px;
+  font-weight: 750;
+  color: #050505;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-unit {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.qty,
+.scanned-item-controls {
+  grid-area: q;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.qty button,
+.btn-qty {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1.5px solid #050505;
+  background: #ffffff;
+  color: #050505;
+  font-size: 15px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+.qty button:active,
+.btn-qty:active {
+  transform: translate(1px, 1px);
+}
+.qty span,
+.qty-val {
+  min-width: 22px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: #050505;
+}
+.btn-delete-item {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1.5px solid #050505;
+  background: #FEE2E2;
+  color: #DC2626;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 12px;
+}
+.c-line,
+.scanned-item-subtotal {
+  grid-area: l;
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  font-weight: 800;
+  color: var(--brand);
+  white-space: nowrap;
+}
+
+/* Pie del Carrito: Totales y Cobro */
+.cart-foot,
+.cart-footer-actions {
+  padding: 14px 18px 16px;
+  border-top: 2px solid #050505;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cart-total-box,
+.total-row {
+  background: var(--soft);
+  border: 2px dashed #050505;
+  border-radius: 14px;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.total-row .lbl {
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 0.5px;
+  color: #050505;
+  font-weight: 800;
+}
+.total-row .ref,
+.cart-total-usd {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.total-row .amount,
+.cart-total-bs {
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  color: #050505;
+}
+
+.btn-pay {
+  min-height: 56px;
+  font-size: 22px;
+}
+
+/* ---------- Barra Fija de Pago (Móviles < 700px) ---------- */
+.kiosk-sticky-paybar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: #ffffff;
+  border-top: var(--border-comic);
+  box-shadow: 0 -4px 12px rgba(5,5,5,0.08);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sticky-paybar-info {
+  display: flex;
+  flex-direction: column;
+}
+.sticky-paybar-count {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.sticky-paybar-totals {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.sticky-paybar-bs {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  color: #050505;
+}
+.sticky-paybar-usd {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.btn-sticky-pay {
+  height: 48px;
+  padding: 0 24px;
+  border-radius: 12px;
+  background: var(--brand);
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  border: var(--border-comic-thin);
+  box-shadow: var(--shadow-comic-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+@media (min-width: 700px) {
+  .kiosk-sticky-paybar {
+    display: none !important;
+  }
+}
+
+/* ---------- Modal Diálogo ---------- */
+.modal-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 5, 5, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+.modal,
+.kiosk-modal-card {
+  width: 100%;
+  max-width: 440px;
+  background: #FFFAF1;
+  border: var(--border-comic);
+  border-radius: 20px;
+  box-shadow: var(--shadow-comic-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: center;
+  align-items: center;
+}
+.modal h2,
+.kiosk-modal-header h3 {
+  font-family: var(--font-display);
+  font-size: 26px;
+  letter-spacing: 0.5px;
+  color: #050505;
+}
+.modal p {
+  font-size: 15px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.modal .actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+}
+.modal .m-primary {
+  height: 50px;
+  border-radius: 12px;
+  background: var(--brand);
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  border: var(--border-comic-thin);
+  box-shadow: var(--shadow-comic-sm);
+  cursor: pointer;
+}
+.modal .m-primary.danger {
+  background: var(--danger);
+}
+.modal .m-secondary {
+  height: 44px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 750;
+  color: var(--muted);
+  border: 1.5px solid #050505;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+/* Modal Registrar Producto Escaneado */
+.kiosk-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 5, 5, 0.6);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+.kiosk-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+.btn-modal-close {
+  background: #ffffff;
+  border: 1.5px solid #050505;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.reg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  width: 100%;
+  margin-bottom: 12px;
+}
+.reg-field label {
+  font-size: 13px;
+  font-weight: 750;
+  color: #050505;
+}
+.form-input {
+  height: 46px;
+  border-radius: 10px;
+  border: var(--border-comic-thin);
+  padding: 0 12px;
+  font-size: 15px;
+  background: #ffffff;
+  outline: none;
+}
+.reg-code-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: var(--border-comic-thin);
+  border-radius: 10px;
+  padding: 4px 12px;
+}
+.reg-code-input {
+  border: none;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  flex: 1;
+}
+.reg-badge-auto {
+  background: var(--soft);
+  color: var(--brand);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #050505;
+}
+
+/* ---------- Responsividad para Tablets en Horizontal y Vertical ---------- */
+@media (max-width: 1100px) {
+  .s-compra {
+    padding: 12px 16px 18px;
+    gap: 14px;
+    grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
+  }
+}
+@media (max-width: 860px) {
+  .k-brand-sub { display: none; }
+  .k-step .label { display: none; }
+  .k-step.current .label { display: inline; }
+}
+@media (max-width: 700px) {
+  .s-compra {
+    grid-template-columns: 1fr;
+    padding-bottom: 96px;
+  }
+}

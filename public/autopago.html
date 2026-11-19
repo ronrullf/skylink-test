@@ -9,7 +9,9 @@
   <script src="/barcode-detector.iife.js"></script>
   <!-- Fallback secundario para máxima precisión en Safari iPad -->
   <script src="/zxing.min.js"></script>
+  <link rel="stylesheet" href="/kiosco/kiosco.css">
   <link rel="stylesheet" href="/pay-ui.css">
+  <script src="/kiosco/kiosco.js"></script>
   <style>
     /* Estilos oficiales Naguaralabs para Kiosco Autopago */
     .kiosk-header {
@@ -900,29 +902,36 @@
   <!-- Notificación Flotante Superior -->
   <div id="kioskToastNotification" class="kiosk-toast-notification"></div>
 
-  <!-- Barra Superior Kiosco Naguaralabs -->
-  <header class="kiosk-header">
-    <a class="kiosk-brand" href="/autopago">
-      <span class="kiosk-logo-badge" id="kioskLogoBadge">
+  <!-- Barra Superior Kiosco Naguaralabs (Diseño Bundle) -->
+  <header class="k-header">
+    <a class="k-brand" href="/autopago">
+      <span class="k-logo" id="kioskLogoBadge">
         <img src="/img/mascot/avatar.png" alt="El Pana Naguaralabs" />
       </span>
-      <div>
-        <span id="kioskBrandName">NAGUARALABS KIOSCO</span>
-        <div style="font-family:var(--font-body); font-size:11px; font-weight:700; color:#5F5950; letter-spacing:0;">Autopago Express · Skylink Pay a Tasa BCV</div>
-      </div>
+      <span class="k-brand-text">
+        <span class="k-brand-name" id="kioskBrandName">NAGUARALABS KIOSCO</span>
+        <span class="k-brand-sub">Caja de autopago · Skylink Pay a Tasa BCV</span>
+      </span>
     </a>
-    <div class="kiosk-meta">
-      <span class="kiosk-badge rate" id="bcvBadge">🏛️ BCV: Bs. 37.50</span>
-      <span class="kiosk-badge live-dot" id="liveClock">--:--</span>
-      <nav class="header-links" aria-label="Navegación">
-        <a href="/autopago" class="active" style="background:var(--naguara-orange, #FF5A0D); color:white; border:2px solid #050505; box-shadow:2px 2px 0 #050505; font-weight:800; border-radius:10px;">🛒 Kiosco</a>
-        <a href="/admin" style="color:#050505; font-weight:800;">📦 Admin</a>
-        <a href="/chat" style="color:#050505; font-weight:800;">💬 Chat IA</a>
+    <div class="k-header-right">
+      <div class="k-info">
+        <span class="k-pill rate" id="bcvBadge">🏛️ BCV: Bs. 37.50</span>
+        <span class="k-pill clock live-dot" id="liveClock">--:--</span>
+      </div>
+      <div class="k-steps" id="steps">
+        <div class="k-step current"><span class="dot">1</span><span class="label">Productos</span></div>
+        <div class="k-step"><span class="dot">2</span><span class="label">Factura</span></div>
+        <div class="k-step"><span class="dot">3</span><span class="label">Pago</span></div>
+      </div>
+      <button type="button" class="btn-help" id="btnHelp" onclick="Kiosk.KioskModal.help()"><span class="q">?</span>Ayuda</button>
+      <nav class="header-links" aria-label="Navegación" style="display:flex; gap:6px;">
+        <a href="/admin" class="k-pill" style="text-decoration:none; color:#050505; font-size:12px; height:38px; padding:0 12px; font-weight:800;">📦 Admin</a>
+        <a href="/chat" class="k-pill" style="text-decoration:none; color:#050505; font-size:12px; height:38px; padding:0 12px; font-weight:800;">💬 Chat IA</a>
       </nav>
     </div>
   </header>
 
-  <section class="page-heading kiosk-heading">
+  <section class="page-heading kiosk-heading" style="padding: 12px clamp(12px, 2vw, 24px) 4px;">
     <div>
       <p class="eyebrow" style="color:var(--naguara-orange, #FF5A0D); font-family:var(--font-display); font-size:14px; letter-spacing:1px; margin-bottom:2px;">¡NA' GUARA DE RÁPIDO! · AUTOPAGO EXPRESS</p>
       <h1 style="font-family:var(--font-display); font-size:36px; letter-spacing:0.5px; color:#050505; margin:0;">ESCANEA TUS PRODUCTOS PARA PAGAR</h1>
@@ -994,13 +1003,23 @@
       <!-- Contenedor dinámico si se escanea un código no registrado -->
       <div id="unregPromptBox" style="display:none;"></div>
 
+      <!-- Catálogo Táctil Rápido del Bundle: ¿Sin código? Tócalo aquí -->
+      <section class="catalog" style="margin-top: 14px;">
+        <div class="catalog-head">
+          <h3>¿Sin código? Tócalo aquí</h3>
+          <span>Toca para agregar al carrito</span>
+        </div>
+        <div class="cats" id="categoryTabs"></div>
+        <div class="grid" id="catalogCardsGrid"></div>
+      </section>
+
       <!-- Chips de prueba rápida -->
-      <div class="scanner-quick-chips">
+      <div class="scanner-quick-chips" style="margin-top: 10px;">
         <span class="chips-label">Prueba rápida:</span>
         <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591001')">🌽 Harina PAN (25 Bs)</button>
         <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591473005492')">🍚 Arroz 1kg (23.50 Bs)</button>
         <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591002')">☕ Café 100g (24.50 Bs)</button>
-        <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591003')">🍝 Pasta 500g (21 Bs)</button>
+        <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591003')">🍝 Pasta 500g (19 Bs)</button>
         <button type="button" class="category-pill chip-pill" onclick="simularEscaneo('7591006')">🍳 Aceite 500ml (25 Bs)</button>
       </div>
     </div>
@@ -1282,14 +1301,64 @@
       }
     }
 
+    function renderCategoryTabs() {
+      const container = document.getElementById('categoryTabs');
+      if (!container) return;
+      const cats = ['Todos', ...new Set(PRODUCTOS.map(p => p.category || 'Víveres'))];
+      container.innerHTML = cats.map(cat => `
+        <button type="button" class="cat-pill ${cat === categoriaSeleccionada ? 'active' : ''}" onclick="filtrarCategoria('${cat.replace(/'/g, "\\'")}', this)">
+          ${cat}
+        </button>
+      `).join('');
+    }
+
+    function renderCatalogCards() {
+      const grid = document.getElementById('catalogCardsGrid');
+      if (!grid) return;
+      const filtrados = categoriaSeleccionada === 'Todos'
+        ? PRODUCTOS
+        : PRODUCTOS.filter(p => (p.category || '').toLowerCase() === categoriaSeleccionada.toLowerCase());
+
+      grid.innerHTML = filtrados.map(p => {
+        const inCartItem = carrito.find(item => item.id === p.id);
+        const qty = inCartItem ? inCartItem.qty : 0;
+        const refUsd = bcvRate > 0 ? (p.priceBs / bcvRate).toFixed(2) : '0.00';
+        const visual = window.Kiosk && window.Kiosk.productVisual ? window.Kiosk.productVisual(p) : `<span class="emoji">${p.icon || '📦'}</span>`;
+        return `
+          <div class="p-card ${qty > 0 ? 'in-cart' : ''}" data-id="${p.id}" onclick="agregarProductoPorId(${p.id})">
+            <div class="p-img">
+              ${visual}
+              ${qty > 0 ? `<span class="p-badge">${qty}</span>` : ''}
+            </div>
+            <div class="p-name">${p.name}</div>
+            <div class="p-price-row">
+              <span class="p-price">Bs. ${Number(p.priceBs).toFixed(2)}</span>
+              <span class="p-ref">≈ $${refUsd}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function agregarProductoPorId(id) {
+      const prod = PRODUCTOS.find(p => p.id === id);
+      if (prod) {
+        if (window.Kiosk && window.Kiosk.beep) window.Kiosk.beep();
+        agregarProducto(prod);
+      }
+    }
+
     function filtrarCategoria(cat, btn) {
       categoriaSeleccionada = cat;
-      document.querySelectorAll('#categoryTabs .category-pill').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#categoryTabs .cat-pill, #categoryTabs .category-pill').forEach(b => b.classList.remove('active'));
       if (btn) btn.classList.add('active');
       renderCatalogo();
     }
 
     function renderCatalogo() {
+      renderCategoryTabs();
+      renderCatalogCards();
+
       const grid = document.getElementById('productsGrid');
       if (!grid) return;
       grid.innerHTML = '';
@@ -1298,30 +1367,10 @@
         ? PRODUCTOS
         : PRODUCTOS.filter(p => (p.category || '').toLowerCase() === categoriaSeleccionada.toLowerCase());
 
-      if (filtrados.length === 0) {
-        grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #94a3b8;">No hay productos en esta categoría</div>';
-        return;
-      }
-
       filtrados.forEach(p => {
         const card = document.createElement('div');
         card.className = 'product-card';
-        const priceBs = Number(p.priceBs).toFixed(2);
-        const priceUsd = (p.priceBs / bcvRate).toFixed(2);
-
-        card.innerHTML = `
-          <div class="product-add-overlay">+</div>
-          <div>
-            <span class="product-badge-cat">${p.category || 'General'}</span>
-            <div class="product-icon">${p.icon || '📦'}</div>
-            <div class="product-name">${p.name}</div>
-            <div class="product-code">Cód: ${p.code}</div>
-          </div>
-          <div style="margin-top: 10px;">
-            <div style="font-size: 11px; color: #64748b;">≈ $${priceUsd} USD</div>
-            <div style="font-size: 18px; font-weight: 800; color: #0f172a;">Bs. ${priceBs}</div>
-          </div>
-        `;
+        card.innerHTML = `<div class="product-name">${p.name}</div>`;
         card.onclick = () => agregarProducto(p);
         grid.appendChild(card);
       });
@@ -1463,15 +1512,19 @@
 
         const row = document.createElement('div');
         row.className = 'scanned-item-card';
+        const visualHtml = window.Kiosk && window.Kiosk.productVisual
+          ? window.Kiosk.productVisual(item)
+          : `<span class="emoji">${item.icon || '📦'}</span>`;
+
         row.innerHTML = `
           <div class="scanned-item-left">
-            <span class="scanned-item-icon">${item.icon || '📦'}</span>
+            <div class="c-thumb">${visualHtml}</div>
             <div class="scanned-item-info">
               <div class="scanned-item-title">${item.name}</div>
               <div class="scanned-item-unitprice">
                 <strong>Bs. ${item.priceBs.toFixed(2)}</strong> c/u
-                <span style="color:#94a3b8; font-size:10px;">≈ $${(item.priceBs / bcvRate).toFixed(2)}</span>
-                <span style="color:#cbd5e1; font-size:10px;">· ${item.code}</span>
+                <span style="color:#5F5950; font-size:11px;">≈ $${(item.priceBs / bcvRate).toFixed(2)}</span>
+                <span style="color:#8c8270; font-size:10px;">· ${item.code}</span>
               </div>
             </div>
           </div>
@@ -1479,9 +1532,9 @@
             <div class="scanned-item-subtotal">Bs. ${itemTotalBs.toFixed(2)}</div>
             <div class="scanned-item-controls">
               <div class="qty-control">
-                <button type="button" onclick="cambiarCantidad(${item.id}, -1)" title="Reducir">−</button>
+                <button type="button" class="btn-qty" onclick="cambiarCantidad(${item.id}, -1)" title="Reducir">−</button>
                 <span class="qty-number">${item.qty}</span>
-                <button type="button" onclick="cambiarCantidad(${item.id}, 1)" title="Aumentar">+</button>
+                <button type="button" class="btn-qty" onclick="cambiarCantidad(${item.id}, 1)" title="Aumentar">+</button>
               </div>
               <button type="button" class="btn-delete-item" onclick="eliminarProducto(${item.id})" title="Eliminar producto">
                 🗑️
@@ -1501,6 +1554,7 @@
         btnPay.innerHTML = `<span>COMPRAR AHORA (${totalItems}) · Bs. ${totalBs.toFixed(2)}</span> <span>Continuar a datos de facturación ➔</span>`;
       }
       actualizarEstadoPago();
+      renderCatalogCards();
     }
 
     // ========================================================
