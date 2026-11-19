@@ -792,231 +792,214 @@ header {
 }
 
 /* ========================================================= */
-/* OPTIMIZACIÓN IPAD & TABLETS (AMBAS ORIENTACIONES)         */
+/* RESPONSIVIDAD ADAPTATIVA NAGUARALABS (TABLETS & MÓVILES)  */
+/* Soporte Horizontal / Vertical con Auto-Organización      */
 /* ========================================================= */
 
-@media (min-width: 740px) {
-  /* Kiosk Viewport: 100% de la altura de la pantalla en iPad */
-  body.kiosk-body {
-    height: var(--app-height);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    background: #f1f5f9;
-    padding: 0;
-    margin: 0;
-  }
+body.kiosk-body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--naguara-cream, #FFFAF1);
+  color: var(--naguara-ink, #050505);
+  padding: 0;
+  margin: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 
-  body.kiosk-body header.kiosk-header {
-    flex-shrink: 0;
-    padding: 8px 18px;
-    min-height: 50px;
-    border-bottom: 1px solid #1e293b;
-  }
+body.kiosk-body header.kiosk-header {
+  flex-shrink: 0;
+  padding: clamp(8px, 1.4vw, 14px) clamp(12px, 2vw, 24px);
+  min-height: 52px;
+  background: #ffffff;
+  border-bottom: var(--border-comic, 3px solid #050505);
+  box-shadow: 0 4px 0 rgba(5, 5, 5, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 
-  body.kiosk-body .page-heading {
-    flex-shrink: 0;
-    margin: 0;
-    padding: 6px 18px;
-    background: #ffffff;
-    border-bottom: 1px solid var(--line);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
+body.kiosk-body .page-heading {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 10px clamp(12px, 2vw, 24px) 6px;
+  background: transparent;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 
-  body.kiosk-body .page-heading .eyebrow {
-    font-size: 9px;
-    letter-spacing: 1.2px;
-    margin-bottom: 2px;
-  }
+body.kiosk-body .page-heading h1 {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: clamp(22px, 3.4vw, 36px);
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0;
+  color: #050505;
+}
 
-  body.kiosk-body .page-heading h1 {
-    font-size: 17px;
-    font-weight: 700;
-    line-height: 1.2;
-    margin: 0;
-  }
+/* Contenedor Kiosk Adaptativo */
+body.kiosk-body .container,
+body.kiosk-body .kiosk-container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 10px clamp(12px, 2vw, 20px);
+  display: grid;
+  gap: clamp(12px, 1.8vw, 20px);
+  box-sizing: border-box;
+}
 
-  body.kiosk-body .page-heading p:last-child {
-    display: none; /* Ahorra espacio vertical para el catálogo */
+/* Tablet Horizontal (Landscape) y Escritorio (>= 880px o landscape >= 700px) */
+@media (min-width: 880px), (min-width: 700px) and (orientation: landscape) {
+  body.kiosk-body .container,
+  body.kiosk-body .kiosk-container {
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.95fr);
+    align-items: stretch;
   }
+}
 
-  body.kiosk-body .page-heading .service-badge {
-    font-size: 10px;
-    padding: 3px 8px;
-    background: #f8fafc;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-  }
-
-  /* Contenedor Kiosk en iPad */
-  body.kiosk-body .container {
-    flex: 1 1 auto;
-    min-height: 0;
-    max-width: 100%;
-    margin: 0;
-    padding: 10px 14px;
-    display: grid;
+/* Tablet Vertical (Portrait entre 680px y 879px) */
+@media (min-width: 680px) and (max-width: 879px) and (orientation: portrait) {
+  body.kiosk-body .container,
+  body.kiosk-body .kiosk-container {
+    grid-template-columns: minmax(0, 1.05fr) minmax(290px, 0.95fr);
+    align-items: stretch;
+    padding: 10px 12px;
     gap: 12px;
-    overflow: hidden;
   }
+}
 
-  /* iPad Horizontal (Landscape) */
-  @media (orientation: landscape) {
-    body.kiosk-body .container {
-      grid-template-columns: minmax(0, 1fr) 340px;
-    }
-    body.kiosk-body .products-grid {
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 10px;
-    }
+/* Pantallas estrechas (< 680px portrait) */
+@media (max-width: 679px) {
+  body.kiosk-body .container,
+  body.kiosk-body .kiosk-container {
+    grid-template-columns: 1fr;
+    padding-bottom: 96px;
   }
+}
 
-  /* iPad Vertical (Portrait) */
-  @media (orientation: portrait) {
-    body.kiosk-body .container {
-      grid-template-columns: minmax(0, 1fr) 290px;
-      gap: 10px;
-      padding: 8px 10px;
-    }
-    body.kiosk-body .products-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-    }
-  }
+/* Tarjetas de Escáner y Carrito */
+body.kiosk-body .scanner-card-box,
+body.kiosk-body .cart-box {
+  background: #ffffff;
+  border: var(--border-comic, 3px solid #050505);
+  box-shadow: var(--shadow-comic, 4px 4px 0px #050505);
+  border-radius: var(--radius-card, 18px);
+  padding: clamp(12px, 1.8vw, 18px);
+  box-sizing: border-box;
+}
 
-  /* Columna izquierda con scroll interno */
-  body.kiosk-body .container > main {
-    height: 100%;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
+/* Panel del Carrito */
+body.kiosk-body .cart-box {
+  display: flex;
+  flex-direction: column;
+}
 
-  body.kiosk-body .scanner-card-box {
-    flex-shrink: 0;
-    padding: 8px 12px;
-    margin-bottom: 8px;
-    border-radius: 12px;
-  }
+body.kiosk-body .cart-box h2 {
+  flex-shrink: 0;
+  margin-bottom: 8px;
+  font-size: 16px;
+}
 
-  body.kiosk-body .scanner-header-bar {
-    margin-bottom: 6px;
-  }
+body.kiosk-body .cart-items,
+body.kiosk-body .scanned-items-list {
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: clamp(200px, 36vh, 480px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 4px;
+}
 
-  body.kiosk-body .category-pills {
-    flex-shrink: 0;
-    padding: 2px 0 6px;
-    margin-bottom: 4px;
-  }
+body.kiosk-body .cart-footer-actions {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 2px solid #050505;
+}
 
-  body.kiosk-body .products-grid {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-right: 4px;
-    padding-bottom: 12px;
-  }
+body.kiosk-body .cart-total-box {
+  margin: 0 0 10px 0;
+  padding: 8px 12px;
+  background: var(--naguara-cream, #FFFAF1);
+  border: 1.5px dashed #050505;
+  border-radius: 12px;
+}
 
-  /* Panel del Carrito en iPad: Fijo al 100% de altura, botón de pagar SIEMPRE visible */
-  body.kiosk-body .cart-box {
-    height: 100%;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    padding: 12px 14px;
-    margin: 0;
-    position: static;
-    border-radius: 14px;
-    background: #ffffff;
-    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
-    border: 1px solid var(--line);
-  }
+body.kiosk-body .cart-total-row {
+  margin: 2px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
-  body.kiosk-body .cart-box h2 {
-    flex-shrink: 0;
-    margin-bottom: 8px;
-    font-size: 15px;
-  }
+body.kiosk-body .cart-total-bs {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: clamp(28px, 3.2vw, 40px);
+  color: #050505;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
 
-  body.kiosk-body .cart-items {
-    flex: 1 1 auto;
-    min-height: 0;
-    max-height: none;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-right: 4px;
-  }
+/* Botón de Comprar / Pagar Naguaralabs: Cómic Naranja */
+body.kiosk-body .btn-pay {
+  width: 100%;
+  min-height: 54px;
+  padding: 10px 16px;
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  font-weight: 800;
+  border-radius: var(--radius-btn, 14px);
+  border: var(--border-comic, 3px solid #050505);
+  background: var(--naguara-orange, #FF5A0D);
+  color: white;
+  box-shadow: var(--shadow-comic, 4px 4px 0px #050505);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease;
+}
 
-  body.kiosk-body .cart-footer-actions {
-    flex-shrink: 0;
-    margin-top: auto;
-    padding-top: 8px;
-    border-top: 1px solid var(--line);
-  }
+body.kiosk-body .btn-pay:hover:not(:disabled) {
+  background: var(--naguara-orange-dark, #E84B00);
+  box-shadow: var(--shadow-comic-lg, 6px 6px 0px #050505);
+  transform: translate(-1px, -1px);
+}
 
-  body.kiosk-body .cart-total-box {
-    margin: 0 0 8px 0;
-    padding: 4px 0;
-    border-top: 0;
-  }
+body.kiosk-body .btn-pay:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-comic-pressed, 1px 1px 0px #050505);
+}
 
-  body.kiosk-body .cart-total-row {
-    margin: 2px 0;
-  }
+body.kiosk-body .btn-pay:disabled {
+  background: #e5dac2;
+  color: #8c8270;
+  border-color: #8c8270;
+  box-shadow: none;
+  opacity: 0.65;
+  cursor: not-allowed;
+}
 
-  body.kiosk-body .cart-total-bs {
-    font-size: 22px;
-    color: #0f172a;
-    font-weight: 800;
-  }
+body.kiosk-body .btn-clear {
+  margin-top: 4px;
+  padding: 4px;
+  font-size: 11px;
+}
 
-  /* Botón de Comprar / Pagar Naguaralabs: Cómic Naranja */
-  body.kiosk-body .btn-pay {
-    min-height: 54px;
-    padding: 10px 16px;
-    font-family: var(--font-display);
-    font-size: 19px;
-    letter-spacing: 0.5px;
-    font-weight: 800;
-    border-radius: var(--radius-btn, 14px);
-    border: var(--border-comic);
-    background: var(--naguara-orange);
-    color: white;
-    box-shadow: var(--shadow-comic);
-    transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease;
-  }
-
-  body.kiosk-body .btn-pay:hover:not(:disabled) {
-    background: var(--naguara-orange-dark);
-    box-shadow: var(--shadow-comic-lg);
-  }
-
-  body.kiosk-body .btn-pay:active:not(:disabled) {
-    transform: translate(2px, 2px);
-    box-shadow: var(--shadow-comic-pressed);
-  }
-
-  body.kiosk-body .btn-pay:disabled {
-    background: #e5dac2;
-    color: #8c8270;
-    border-color: #8c8270;
-    box-shadow: none;
-    opacity: 0.65;
-  }
-
-  body.kiosk-body .btn-clear {
-    margin-top: 2px;
-    padding: 4px;
-    font-size: 11px;
-  }
-
-  body.kiosk-body .page-footer {
-    display: none;
-  }
+body.kiosk-body .page-footer {
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 /* ========================================================= */
@@ -1126,7 +1109,7 @@ header {
   }
 }
 
-@media (min-width: 740px) {
+@media (min-width: 680px) {
   .kiosk-sticky-paybar {
     display: none !important;
   }

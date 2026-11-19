@@ -165,26 +165,65 @@
       gap: 4px;
     }
 
-    /* Estilos del Lector Continuo BarcodeDetector */
-    .scanner-actions {
+    /* Estilos del Lector Continuo BarcodeDetector con Auto-Organización para Tablets */
+    .scanner-header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .scanner-title-group {
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
+    }
+    .scanner-main-title {
+      font-family: var(--font-display, 'Bebas Neue', sans-serif);
+      font-size: 21px;
+      letter-spacing: 0.5px;
+      color: #050505;
+      font-weight: 800;
+    }
+    .scanner-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(115px, 1fr));
+      gap: 6px;
+      align-items: center;
+      width: 100%;
+    }
+    @media (min-width: 980px) {
+      .scanner-actions {
+        display: flex;
+        flex-wrap: wrap;
+        width: auto;
+      }
+    }
+    .btn-torch,
+    .btn-flip-camera,
+    .btn-register-mode,
+    .btn-toggle-camera {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 750;
+      border-radius: 10px;
+      border: 2px solid #050505;
+      box-shadow: 2px 2px 0 #050505;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease;
+      user-select: none;
+      -webkit-user-select: none;
     }
     .btn-torch {
       background: #050505;
       color: #f8fafc;
-      border: 2px solid #050505;
-      box-shadow: 2px 2px 0 #050505;
-      border-radius: 10px;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      transition: all 0.15s ease;
     }
     .btn-torch.active {
       background: #f59e0b;
@@ -195,26 +234,34 @@
     .btn-flip-camera {
       background: #050505;
       color: #ffffff;
-      border: 2px solid #050505;
-      box-shadow: 2px 2px 0 #050505;
-      border-radius: 10px;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      transition: all 0.15s ease;
     }
     .btn-flip-camera:hover {
       background: #262626;
+      transform: translate(-1px, -1px);
+      box-shadow: 3px 3px 0 #050505;
+    }
+    .btn-flip-camera:active {
+      transform: translate(2px, 2px);
+      box-shadow: 0px 0px 0 #050505;
     }
     .btn-flip-camera.active-front {
       background: var(--naguara-orange, #FF5A0D);
       border-color: #050505;
       color: #ffffff;
       font-weight: 800;
+    }
+    .btn-toggle-camera {
+      background: #ffffff;
+      color: #050505;
+    }
+    .btn-toggle-camera:hover {
+      background: #f1f5f9;
+      transform: translate(-1px, -1px);
+      box-shadow: 3px 3px 0 #050505;
+    }
+    .btn-toggle-camera:active {
+      transform: translate(2px, 2px);
+      box-shadow: 0px 0px 0 #050505;
     }
     #cameraVideo.camera-mirrored,
     .camera-mirrored video,
@@ -224,15 +271,26 @@
     }
     .camera-viewport-container {
       position: relative;
-      height: clamp(230px, 32vh, 360px);
+      height: clamp(210px, 32vh, 380px);
       overflow: hidden;
       background: #020617;
-      border-radius: 14px;
+      border-radius: 16px;
+      border: 3px solid #050505;
+      box-shadow: 3px 3px 0 #050505;
       margin-bottom: 12px;
-      box-shadow: inset 0 0 16px rgba(0,0,0,0.6);
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+    @media (orientation: portrait) and (min-width: 680px) {
+      .camera-viewport-container {
+        height: clamp(200px, 26vh, 290px);
+      }
+    }
+    @media (max-width: 679px) {
+      .camera-viewport-container {
+        height: 200px;
+      }
     }
     #cameraVideo {
       width: 100%;
@@ -645,16 +703,37 @@
       box-shadow: 4px 4px 0 #050505;
     }
 
-    /* Layout Optimizado: Solo Escáner + Carrito */
+    /* Layout Optimizado: Solo Escáner + Carrito con Soporte Completo Horizontal / Vertical */
     .kiosk-container {
       display: grid !important;
-      gap: 16px !important;
-      max-width: 1200px !important;
+      gap: clamp(12px, 1.8vw, 20px) !important;
+      max-width: 1400px !important;
       margin: 0 auto !important;
-      padding: 12px 16px !important;
+      padding: 10px clamp(12px, 2vw, 20px) !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
     }
 
-    @media (max-width: 739px) {
+    /* Tablet Horizontal (Landscape) y Escritorio (>= 880px o landscape >= 700px) */
+    @media (min-width: 880px), (min-width: 700px) and (orientation: landscape) {
+      .kiosk-container {
+        grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.95fr) !important;
+        align-items: stretch !important;
+      }
+    }
+
+    /* Tablet Vertical (Portrait 680px - 879px) */
+    @media (min-width: 680px) and (max-width: 879px) and (orientation: portrait) {
+      .kiosk-container {
+        grid-template-columns: minmax(0, 1.05fr) minmax(290px, 0.95fr) !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+        padding: 8px 12px !important;
+      }
+    }
+
+    /* Móviles y pantallas estrechas (< 680px) */
+    @media (max-width: 679px) {
       .kiosk-container {
         grid-template-columns: 1fr !important;
         padding-bottom: 96px !important;
@@ -662,16 +741,6 @@
       .scanner-card-box {
         padding: 14px !important;
         margin-bottom: 0 !important;
-      }
-      .camera-viewport-container {
-        height: 190px !important;
-      }
-    }
-
-    @media (min-width: 740px) {
-      .kiosk-container {
-        grid-template-columns: 1.05fr 0.95fr !important;
-        align-items: start !important;
       }
     }
 
