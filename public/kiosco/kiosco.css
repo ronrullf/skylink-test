@@ -275,6 +275,80 @@ a:hover { color: var(--brand-dark); }
   font-weight: 800;
 }
 
+/* CTA Esquina Superior Derecha: ¿Quieres este sistema? */
+.k-cta-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: var(--border-comic-thin);
+  border-radius: 999px;
+  padding: 4px 6px 4px 14px;
+  box-shadow: var(--shadow-comic-sm);
+  text-decoration: none;
+  color: #050505;
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 750;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.k-cta-whatsapp:hover {
+  background: #FFFDF8;
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #050505;
+}
+.k-cta-whatsapp:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 #050505;
+}
+.k-cta-whatsapp .k-cta-wa-text {
+  font-weight: 800;
+  color: #050505;
+  letter-spacing: -0.2px;
+}
+.k-cta-whatsapp .k-cta-wa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #25D366;
+  color: #ffffff;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1.5px solid #050505;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 1px 1px 0 #050505;
+  transition: filter 0.15s ease;
+}
+.k-cta-whatsapp:hover .k-cta-wa-btn {
+  filter: brightness(1.06);
+}
+@media (max-width: 900px) {
+  .k-cta-whatsapp {
+    padding: 3px 5px 3px 10px;
+    font-size: 12px;
+    gap: 6px;
+  }
+  .k-cta-whatsapp .k-cta-wa-btn {
+    padding: 4px 10px;
+    font-size: 11.5px;
+  }
+}
+@media (max-width: 640px) {
+  .k-cta-whatsapp {
+    padding: 2px 4px 2px 8px;
+  }
+  .k-cta-whatsapp .k-cta-wa-text {
+    display: none;
+  }
+  .k-cta-whatsapp .k-cta-wa-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+}
+
 /* Botones Principales Cómic */
 .btn-primary {
   height: 56px;
