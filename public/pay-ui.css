@@ -877,12 +877,166 @@ body.kiosk-body .kiosk-container {
   }
 }
 
-/* Pantallas estrechas (< 680px portrait) */
+/* Pantallas estrechas / celulares (< 680px) */
 @media (max-width: 679px) {
   body.kiosk-body .container,
   body.kiosk-body .kiosk-container {
     grid-template-columns: 1fr;
-    padding-bottom: 96px;
+    padding: 6px 10px 105px;
+    gap: 10px;
+  }
+  body.kiosk-body .page-heading {
+    display: none !important;
+  }
+  body.kiosk-body .scanner-card-box,
+  body.kiosk-body .cart-box {
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
+  body.kiosk-body .camera-viewport-container {
+    height: clamp(160px, 24vh, 210px) !important;
+    border-radius: 12px;
+  }
+  .scanner-header-bar {
+    margin-bottom: 6px;
+    gap: 6px;
+  }
+  .scanner-main-title {
+    font-size: 16px;
+  }
+  .scanner-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    width: 100%;
+  }
+  .btn-flip-camera,
+  .btn-register-mode,
+  .btn-toggle-camera,
+  .btn-torch {
+    padding: 5px 6px;
+    font-size: 11px;
+    border-radius: 8px;
+    justify-content: center;
+  }
+  .scanner-banner {
+    margin-top: 8px;
+    gap: 6px;
+  }
+  .scanner-banner input {
+    height: 38px;
+    font-size: 13px;
+    padding: 0 10px;
+  }
+  .scanner-banner .btn-add-code {
+    height: 38px;
+    padding: 0 14px;
+    font-size: 14px;
+  }
+  .scanner-quick-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 4px 2px 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .scanner-quick-chips .chip-pill {
+    padding: 4px 10px;
+    font-size: 11.5px;
+    flex-shrink: 0;
+  }
+  /* Catálogo en celular: limpio, compacto y ordenado */
+  .catalog {
+    margin-top: 8px !important;
+  }
+  .catalog .catalog-head {
+    margin-bottom: 6px;
+  }
+  .catalog .catalog-head h3 {
+    font-size: 16px;
+  }
+  .catalog .catalog-head span {
+    font-size: 11px;
+  }
+  .catalog .cats {
+    gap: 6px;
+    padding-bottom: 6px;
+  }
+  .catalog .cats .cat-pill {
+    padding: 4px 10px;
+    font-size: 11.5px;
+    height: 28px;
+  }
+  .catalog .grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  .catalog .p-card {
+    padding: 8px 6px !important;
+    border-radius: 10px !important;
+  }
+  .catalog .p-card .p-img {
+    height: 60px !important;
+    margin-bottom: 4px !important;
+  }
+  .catalog .p-card .p-img img {
+    max-height: 52px !important;
+  }
+  .catalog .p-card .p-name {
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+    height: 28px !important;
+  }
+  .catalog .p-card .p-price-row {
+    font-size: 12px !important;
+  }
+  .catalog .p-card .p-price {
+    font-size: 13px !important;
+  }
+  .btn-toggle-catalog-mobile {
+    background: #ffffff;
+    border: 2px solid #050505;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #050505;
+    box-shadow: 2px 2px 0 #050505;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+  .btn-toggle-catalog-mobile:active {
+    transform: translate(1px, 1px);
+    box-shadow: 0 0 0 #050505;
+  }
+  /* Carrito compacto en celular */
+  .scanned-empty-state {
+    padding: 12px 8px !important;
+  }
+  .scanned-empty-state img {
+    width: 65px !important;
+  }
+  .scanned-empty-state div:nth-child(2) {
+    font-size: 17px !important;
+  }
+  .scanned-empty-state p {
+    font-size: 11.5px !important;
+  }
+  body.kiosk-body .cart-total-box {
+    padding: 6px 10px;
+  }
+  body.kiosk-body .cart-total-bs {
+    font-size: 26px;
+  }
+  body.kiosk-body .btn-pay {
+    min-height: 50px;
+    font-size: 20px;
+  }
+  .kiosk-cta-section {
+    margin: 12px auto 6px !important;
+    padding: 0 8px !important;
   }
 }
 
@@ -1016,29 +1170,27 @@ body.kiosk-body .page-footer {
     left: 0;
     right: 0;
     z-index: 1000;
-    background: rgba(15, 23, 42, 0.96);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-top: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 10px 16px;
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    background: #ffffff;
+    border-top: 3px solid #050505;
+    padding: 8px 14px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    box-shadow: 0 -6px 25px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 -4px 14px rgba(5, 5, 5, 0.08);
   }
 
   .sticky-paybar-info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
   }
 
   .sticky-paybar-count {
     font-size: 11px;
-    color: #94a3b8;
-    font-weight: 600;
+    color: #5F5950;
+    font-weight: 700;
   }
 
   .sticky-paybar-totals {
@@ -1048,28 +1200,31 @@ body.kiosk-body .page-footer {
   }
 
   .sticky-paybar-bs {
-    font-size: 18px;
-    font-weight: 800;
-    color: #38bdf8;
+    font-size: 20px;
+    font-weight: 900;
+    color: #050505;
+    font-family: var(--font-display, 'Bebas Neue', sans-serif);
+    letter-spacing: 0.5px;
   }
 
   .sticky-paybar-usd {
-    font-size: 11px;
-    color: #94a3b8;
+    font-size: 11.5px;
+    color: #5F5950;
+    font-weight: 700;
   }
 
   .btn-sticky-pay {
-    background: var(--naguara-orange);
-    color: white;
-    border: var(--border-comic);
-    border-radius: var(--radius-btn, 14px);
-    padding: 10px 18px;
-    font-family: var(--font-display);
-    font-size: 16px;
+    background: var(--naguara-orange, #FF5A0D);
+    color: #ffffff;
+    border: 2.5px solid #050505;
+    border-radius: 12px;
+    padding: 10px 20px;
+    font-family: var(--font-display, 'Bebas Neue', sans-serif);
+    font-size: 19px;
     letter-spacing: 0.5px;
     font-weight: 800;
     cursor: pointer;
-    box-shadow: var(--shadow-comic-sm);
+    box-shadow: 2px 2px 0 #050505;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1077,21 +1232,23 @@ body.kiosk-body .page-footer {
   }
 
   .btn-sticky-pay:hover:not(:disabled) {
-    background: var(--naguara-orange-dark);
+    background: var(--naguara-orange-dark, #E84B00);
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 #050505;
   }
 
   .btn-sticky-pay:active:not(:disabled) {
     transform: translate(2px, 2px);
-    box-shadow: none;
+    box-shadow: 0 0 0 #050505;
   }
 
   .btn-sticky-pay:disabled {
-    background: #e5dac2;
-    color: #8c8270;
-    border-color: #8c8270;
+    background: #e2e8f0;
+    color: #94a3b8;
+    border-color: #94a3b8;
     box-shadow: none;
     cursor: not-allowed;
-    opacity: 0.7;
+    opacity: 0.75;
   }
 
   .container, .main-container {

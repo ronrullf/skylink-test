@@ -397,18 +397,18 @@
       <button type="button" class="back" id="btnBackToCedula">← Cambiar cédula</button>
     </section>
 
-    <!-- PASO 3: PANTALLA DE PAGO SKYLINK -->
+    <!-- PASO 3: PANTALLA DE PAGO -->
     <section class="card" id="paymentStep" hidden>
       <p class="eyebrow">Paso 3 de 4</p>
       <h1>Completa el pago</h1>
-      <p class="intro">Tu factura ya está preparada. Finaliza el pago en la pantalla oficial de Skylink.</p>
+      <p class="intro">Tu factura ya está preparada. Finaliza el pago en la pantalla oficial de pago.</p>
       <div class="summary">
         <div><small>Importe exacto</small><span id="payerName">Cliente</span></div>
         <strong id="paymentTotal">Bs. 0.00</strong>
       </div>
-      <a class="primary" id="officialCheckout" target="_blank" rel="noopener noreferrer">Abrir Skylink Pay ↗</a>
+      <a class="primary" id="officialCheckout" target="_blank" rel="noopener noreferrer">Abrir Pasarela de Pago ↗</a>
       <button class="secondary" id="toggleQr" type="button">Pagar desde otro teléfono con QR</button>
-      <div class="qr" id="qrBox"><img id="qrImage" alt="Código QR para pagar con Skylink"></div>
+      <div class="qr" id="qrBox"><img id="qrImage" alt="Código QR para pagar"></div>
       <div class="monitor" id="paymentStatus"><span class="pulse"></span>Esperando confirmación del pago… Te enviaremos tu factura al instante por WhatsApp y correo.</div>
       <p class="message error" id="paymentError" role="alert" hidden></p>
       <a class="back" href="/autopago">← Cancelar y volver al carrito</a>
@@ -599,7 +599,7 @@
     async function crearTransaccionSkylink({ name, email, phone, idNumber, buttonEl, errorBoxEl, idleLabel }) {
       setError(errorBoxEl, '');
       buttonEl.disabled = true;
-      buttonEl.textContent = 'Conectando con Skylink…';
+      buttonEl.textContent = 'Conectando con pasarela…';
 
       try {
         const response = await fetch('/api/create-payment', {
@@ -619,7 +619,7 @@
         });
         const json = await response.json();
         if (!response.ok || !json.success || !json.data) {
-          throw new Error(json.message || 'No se pudo iniciar el pago con Skylink.');
+          throw new Error(json.message || 'No se pudo iniciar el proceso de pago.');
         }
 
         currentOrder = json.data;
